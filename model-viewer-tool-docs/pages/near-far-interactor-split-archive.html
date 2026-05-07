@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="本文档用于说明当前项目中 NearFarInteractor 相关中文归档文档的组织方式。" />
+        <title>NearFarInteractor 拆分归档目录 | ModelViewerTool Docs</title>
+        <link rel="stylesheet" href="../assets/docs.css" />
+    </head>
+    <body>
+        <header class="hero hero--doc">
+            <div class="shell">
+                <a class="crumb" href="../index.html">← 返回 ModelViewerTool Docs</a>
+                <div class="hero-headline">
+                    <span class="chip">归档目录</span>
+                    <h1>NearFarInteractor 拆分归档目录</h1>
+                </div>
+                <p class="hero-summary">本文档用于说明当前项目中 NearFarInteractor 相关中文归档文档的组织方式。</p>
+                <div class="hero-meta">
+                    <span>原始文件：NearFarInteractor-拆分归档目录.md</span>
+                    <span>章节数：11</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="shell layout">
+            <article class="panel doc-panel">
+                <details class="toc-mobile">
+                    <summary>目录导航</summary>
+                    <ol class="toc-list"><li class="toc-item toc-item--lvl-1"><a href="#section-1">NearFarInteractor 拆分归档目录</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-2">保留的整合版</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-3">新增的拆分归档版</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-4">1. NearFarInteractor 主文档</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-5">2. Interaction Attach Controller</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-6">3. Curve Visual Controller</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-7">4. XR UI Setup</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-8">5. Tracked Device Graphic Raycaster</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-9">6. 源码阅读笔记</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-10">推荐阅读顺序</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-11">一句话建议</a></li></ol>
+                </details>
+                <h1 id="section-1">NearFarInteractor 拆分归档目录</h1>
+<p>本文档用于说明当前项目中 <code>NearFarInteractor</code> 相关中文归档文档的组织方式。</p>
+<h2 id="section-2">保留的整合版</h2>
+<ul><li><code>NearFarInteractor-官方文档中文注释版.md</code></li></ul>
+<p>说明：</p>
+<ul><li>这是一份“整合说明版”文档。</li><li>它以 <code>NearFarInteractor</code> 为中心，把 <code>InteractionAttachController</code>、<code>CurveVisualController</code>、XR UI 配置等强相关内容合并到了一起。</li><li>适合第一次整体理解这套交互链路时阅读。</li></ul>
+<h2 id="section-3">新增的拆分归档版</h2>
+<p>下面这些文档是按“一个主题一份文件”拆开的，后续查资料会更清晰。</p>
+<h3 id="section-4">1. NearFarInteractor 主文档</h3>
+<ul><li><code>NearFarInteractor-官方文档中文注释版-拆分版.md</code></li></ul>
+<p>内容：</p>
+<ul><li>仅围绕官方 <code>near-far-interactor.md</code></li><li>重点解释 NearFarInteractor 的定位、属性、枚举和用法</li></ul>
+<h3 id="section-5">2. Interaction Attach Controller</h3>
+<ul><li><code>InteractionAttachController-官方文档中文注释版.md</code></li></ul>
+<p>内容：</p>
+<ul><li>仅围绕官方 <code>interaction-attach-controller.md</code></li><li>重点解释远距离附着点、平滑、稳定、推拉和操控输入</li></ul>
+<h3 id="section-6">3. Curve Visual Controller</h3>
+<ul><li><code>CurveVisualController-官方文档中文注释版.md</code></li></ul>
+<p>内容：</p>
+<ul><li>仅围绕官方 <code>curve-visual-controller.md</code></li><li>重点解释射线视觉效果，不负责真实命中</li></ul>
+<h3 id="section-7">4. XR UI Setup</h3>
+<ul><li><code>XR-UI-Setup-官方文档中文注释版.md</code></li></ul>
+<p>内容：</p>
+<ul><li>仅围绕官方 <code>ui-setup.md</code></li><li>重点解释 World Space Canvas、EventSystem、XRUIInputModule、XR UI 链路</li></ul>
+<h3 id="section-8">5. Tracked Device Graphic Raycaster</h3>
+<ul><li><code>TrackedDeviceGraphicRaycaster-官方文档中文注释版.md</code></li></ul>
+<p>内容：</p>
+<ul><li>仅围绕官方 <code>tracked-device-graphic-raycaster.md</code></li><li>重点解释 XR 控制器如何点 World Space UI</li></ul>
+<h3 id="section-9">6. 源码阅读笔记</h3>
+<ul><li><code>NearFarInteractor-源码阅读笔记.md</code></li></ul>
+<p>内容：</p>
+<ul><li>结合 <code>NearFarInteractor.cs</code></li><li>重点记录官方文档里没那么直观、但源码中很关键的实现行为</li></ul>
+<h2 id="section-10">推荐阅读顺序</h2>
+<p>如果你是第一次系统学习，推荐按下面顺序看：</p>
+<ol><li><code>NearFarInteractor-官方文档中文注释版.md</code></li><li><code>NearFarInteractor-官方文档中文注释版-拆分版.md</code></li><li><code>InteractionAttachController-官方文档中文注释版.md</code></li><li><code>XR-UI-Setup-官方文档中文注释版.md</code></li><li><code>TrackedDeviceGraphicRaycaster-官方文档中文注释版.md</code></li><li><code>CurveVisualController-官方文档中文注释版.md</code></li><li><code>NearFarInteractor-源码阅读笔记.md</code></li></ol>
+<h2 id="section-11">一句话建议</h2>
+<p>如果你想先把项目做起来，优先看：</p>
+<ul><li><code>NearFarInteractor-官方文档中文注释版.md</code></li><li><code>XR-UI-Setup-官方文档中文注释版.md</code></li><li><code>TrackedDeviceGraphicRaycaster-官方文档中文注释版.md</code></li></ul>
+<p>如果你想把“为什么它会这样工作”也彻底搞清楚，再看：</p>
+<ul><li><code>InteractionAttachController-官方文档中文注释版.md</code></li><li><code>CurveVisualController-官方文档中文注释版.md</code></li><li><code>NearFarInteractor-源码阅读笔记.md</code></li></ul>
+                <nav class="pager"><a class="pager-link" href="near-far-interactor-annotated-zh.html"><span>上一篇</span><strong>NearFarInteractor 官方文档中文注释版</strong></a><a class="pager-link" href="near-far-interactor-source-notes.html"><span>下一篇</span><strong>NearFarInteractor 源码阅读笔记</strong></a></nav>
+            </article>
+
+            <aside class="panel toc-panel">
+                <div class="toc-title">目录导航</div>
+                <ol class="toc-list"><li class="toc-item toc-item--lvl-1"><a href="#section-1">NearFarInteractor 拆分归档目录</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-2">保留的整合版</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-3">新增的拆分归档版</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-4">1. NearFarInteractor 主文档</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-5">2. Interaction Attach Controller</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-6">3. Curve Visual Controller</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-7">4. XR UI Setup</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-8">5. Tracked Device Graphic Raycaster</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-9">6. 源码阅读笔记</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-10">推荐阅读顺序</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-11">一句话建议</a></li></ol>
+            </aside>
+        </main>
+    </body>
+</html>

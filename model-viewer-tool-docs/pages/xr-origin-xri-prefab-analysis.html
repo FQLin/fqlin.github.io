@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="本文档用于解释 XR Interaction Toolkit Starter Assets 中的 XR Origin (XR Rig) 预置件，重点面向当前这个“VR 点云主观实验平台”项目。" />
+        <title>XR Origin (XR Rig) 预置件分析 | ModelViewerTool Docs</title>
+        <link rel="stylesheet" href="../assets/docs.css" />
+    </head>
+    <body>
+        <header class="hero hero--doc">
+            <div class="shell">
+                <a class="crumb" href="../index.html">← 返回 ModelViewerTool Docs</a>
+                <div class="hero-headline">
+                    <span class="chip">专题文档</span>
+                    <h1>XR Origin (XR Rig) 预置件分析</h1>
+                </div>
+                <p class="hero-summary">本文档用于解释 XR Interaction Toolkit Starter Assets 中的 XR Origin (XR Rig) 预置件，重点面向当前这个“VR 点云主观实验平台”项目。</p>
+                <div class="hero-meta">
+                    <span>原始文件：XR-Origin-XRI-Prefab-Analysis.md</span>
+                    <span>章节数：27</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="shell layout">
+            <article class="panel doc-panel">
+                <details class="toc-mobile">
+                    <summary>目录导航</summary>
+                    <ol class="toc-list"><li class="toc-item toc-item--lvl-1"><a href="#section-1">XR Origin (XR Rig) 预置件分析</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-2">1. 这个预置件是做什么的</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-3">2. 总体层级结构</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-4">3. 根对象：XR Origin (XR Rig)</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-5">GameObject</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-6">Transform</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-7">XROrigin 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-8">CharacterController 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-9">InputActionManager 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-10">XRInputModalityManager 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-11">XRGazeAssistance 组件</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-12">4. Camera Offset</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-13">5. Main Camera</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-14">Transform</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-15">Camera 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-16">AudioListener 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-17">TrackedPoseDriver 组件</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-18">6. Left Controller 和 Right Controller</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-19">ControllerInputActionManager 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-20">XRInteractionGroup 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-21">HapticImpulsePlayer 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-22">手柄上的 TrackedPoseDriver 组件</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-23">7. Controller Visual</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-24">8. Poke Interactor</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-25">9. Near-Far Interactor</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-26">10. Teleport Interactor</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-27">11. Gaze Interactor</a></li></ol>
+                </details>
+                <h1 id="section-1">XR Origin (XR Rig) 预置件分析</h1>
+<p>本文档用于解释 XR Interaction Toolkit Starter Assets 中的 <code>XR Origin (XR Rig)</code> 预置件，重点面向当前这个“VR 点云主观实验平台”项目。</p>
+<p>预置件路径：</p>
+<p><code>Assets/Samples/XR Interaction Toolkit/3.4.1/Starter Assets/Prefabs/XR Origin (XR Rig).prefab</code></p>
+<p>重要说明：</p>
+<p>我检查磁盘上已保存的 <code>HomeScene.unity</code> 时，看到旧的手工 <code>XR Origin</code> 仍然在场景中，也看到一个被禁用的 <code>XR Interaction Simulator</code> 实例；但当时没有在已保存的场景文件里看到 <code>XR Origin (XR Rig)</code> 这个预置件实例。如果你是在 Unity 编辑器中刚拖入但还没有保存场景，那么它只存在于编辑器当前状态中，文本文件里暂时看不到。本文档主要分析 XRI 官方预置件本体。如果你保存场景后，我可以继续帮你检查“场景实例”的具体参数覆盖。</p>
+<h2 id="section-2">1. 这个预置件是做什么的</h2>
+<p><code>XR Origin (XR Rig)</code> 是 XR Interaction Toolkit 提供的标准 XR 玩家 rig。它不是一个单纯的摄像机对象，而是一整套 VR 玩家基础结构。</p>
+<p>它包含的能力有：</p>
+<ul><li>头显位置和旋转追踪。</li><li>左右手柄位置和旋转追踪。</li><li>远距离射线式交互。</li><li>近距离触碰式交互。</li><li>传送交互。</li><li>可选的凝视交互。</li><li>连续移动、快速转向、平滑转向、重力、攀爬、跳跃、抓取移动等 Locomotion 功能。</li><li>自动启用 XRI 默认输入动作资源。</li><li>使用 <code>CharacterController</code> 表示玩家身体碰撞。</li></ul>
+<p>对当前项目来说，它适合作为新项目的 VR 基础。因为它和 Unity 6000.x、XR Interaction Toolkit 3.x 的使用方式更一致，比我们手工一点点拼 <code>XR Origin</code> 更适合作为学习和长期维护的基础。</p>
+<h2 id="section-3">2. 总体层级结构</h2>
+<pre class="code-block"><code class="language-text">XR Origin (XR Rig)
+├─ Camera Offset
+│  ├─ Main Camera
+│  ├─ Gaze Interactor
+│  ├─ Gaze Stabilized
+│  │  └─ Gaze Stabilized Attach
+│  ├─ Left Controller
+│  │  ├─ Left Controller Visual
+│  │  ├─ Poke Interactor
+│  │  │  └─ Poke Point Affordances
+│  │  ├─ Teleport Interactor
+│  │  └─ Near-Far Interactor
+│  ├─ Left Controller Teleport Stabilized Origin
+│  │  └─ Left Controller Stabilized Attach
+│  ├─ Right Controller
+│  │  ├─ Right Controller Visual
+│  │  ├─ Poke Interactor
+│  │  │  └─ Poke Point Affordances
+│  │  ├─ Teleport Interactor
+│  │  └─ Near-Far Interactor
+│  └─ Right Controller Teleport Stabilized Origin
+│     └─ Right Controller Stabilized Attach
+└─ Locomotion
+   ├─ Turn
+   ├─ Move
+   ├─ Grab Move
+   ├─ Teleportation
+   ├─ Climb
+   │  └─ Climb Teleport
+   ├─ Gravity
+   └─ Jump</code></pre>
+<p>可以先这样理解：</p>
+<ul><li><code>XR Origin (XR Rig)</code> 是玩家在 Unity 世界中的根对象。</li><li><code>Camera Offset</code> 是头显和手柄追踪对象的父节点。</li><li><code>Main Camera</code> 代表用户的头显视角。</li><li><code>Left Controller</code> 和 <code>Right Controller</code> 代表左右 VR 手柄。</li><li>每个手柄下面的 Interactor 是不同的交互方式。</li><li><code>Locomotion</code> 下面放的是移动、转向、传送、重力、跳跃等能力。</li></ul>
+<h2 id="section-4">3. 根对象：XR Origin (XR Rig)</h2>
+<h3 id="section-5">GameObject</h3>
+<p>名称：</p>
+<p><code>XR Origin (XR Rig)</code></p>
+<p>状态：</p>
+<ul><li>默认激活。</li><li>Layer 是 <code>2</code>，也就是 Unity 内置的 <code>Ignore Raycast</code> 层。</li></ul>
+<p>为什么使用 <code>Ignore Raycast</code>：</p>
+<ul><li>玩家 rig 通常不应该被自己的射线打到。</li><li>如果以后在 rig 下添加可见模型或碰撞体，要小心不要让它们挡住 UI 射线或点云选择射线。</li></ul>
+<h3 id="section-6">Transform</h3>
+<p>关键参数：</p>
+<ul><li>Local Position：<code>{x: 0, y: 0, z: 0}</code></li><li>Local Rotation：单位旋转</li><li>Local Scale：<code>{x: 1, y: 1, z: 1}</code></li><li>子节点：<code>Camera Offset</code>、<code>Locomotion</code></li></ul>
+<p>作用：</p>
+<ul><li>这是玩家在场景中的总根节点。</li><li>移动或旋转它，会带动头显、手柄、交互器和移动系统一起变化。</li></ul>
+<h3 id="section-7">XROrigin 组件</h3>
+<p>脚本：</p>
+<p><code>Unity.XR.CoreUtils.XROrigin</code></p>
+<p>主要参数：</p>
+<ul><li><code>Camera</code>：引用 <code>Main Camera</code>。</li><li><code>Origin Base Game Object</code>：引用根对象 <code>XR Origin (XR Rig)</code>。</li><li><code>Camera Floor Offset Object</code>：引用 <code>Camera Offset</code>。</li><li><code>Requested Tracking Origin Mode</code>：<code>0</code>。</li><li><code>Camera Y Offset</code>：<code>1.36144</code>。</li></ul>
+<p>作用：</p>
+<ul><li>把真实 XR 设备的追踪空间映射到 Unity 场景空间。</li><li>告诉系统哪一个 Camera 是头显相机。</li><li>在需要的时候通过 <code>Camera Offset</code> 调整相机高度。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>每个场景只保留一个激活的 <code>XROrigin</code>。</li><li>不要让旧的手工 <code>XR Origin</code> 和新的 XRI <code>XR Origin (XR Rig)</code> 同时激活。</li><li>如果两个都激活，可能出现两个相机、两个 <code>AudioListener</code>、重复输入、UI 射线混乱等问题。</li></ul>
+<h3 id="section-8">CharacterController 组件</h3>
+<p>这是 Unity 内置组件，不是 XRI 专属脚本。</p>
+<p>主要参数：</p>
+<ul><li><code>Height</code>：<code>1.36144</code></li><li><code>Radius</code>：<code>0.1</code></li><li><code>Slope Limit</code>：<code>45</code></li><li><code>Step Offset</code>：<code>0.5</code></li><li><code>Skin Width</code>：<code>0.08</code></li><li><code>Min Move Distance</code>：<code>0.001</code></li><li><code>Center</code>：<code>{x: 0, y: 0.76072, z: 0}</code></li><li><code>Is Trigger</code>：<code>false</code></li></ul>
+<p>作用：</p>
+<ul><li>给玩家 rig 一个胶囊形碰撞体。</li><li>连续移动、重力、攀爬、跳跃等系统可以用它来做碰撞和地面检测。</li></ul>
+<p>参数解释：</p>
+<ul><li><code>Height</code> 表示玩家身体碰撞高度。</li><li><code>Radius</code> 表示玩家身体碰撞半径。</li><li><code>Slope Limit</code> 表示能走上去的最大坡度。</li><li><code>Step Offset</code> 表示可跨越的台阶高度。</li><li><code>Skin Width</code> 是碰撞计算的容差。</li><li><code>Min Move Distance</code> 表示小于这个数值的移动会被忽略。</li><li><code>Center</code> 是胶囊碰撞体在本地坐标中的中心。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>如果实验只需要固定位置观察点云，可以先保留这个组件，但禁用不需要的移动能力。</li><li>如果以后完全不允许移动，它可以保留但不一定发挥作用。</li></ul>
+<h3 id="section-9">InputActionManager 组件</h3>
+<p>脚本：</p>
+<p><code>UnityEngine.XR.Interaction.Toolkit.Inputs.InputActionManager</code></p>
+<p>主要参数：</p>
+<ul><li><code>Action Assets</code>：引用 <code>XRI Default Input Actions</code>。</li></ul>
+<p>作用：</p>
+<ul><li>当 rig 激活时，自动启用输入动作资源。</li><li>头显追踪、手柄追踪、按钮、移动、转向、传送、UI 滚动等都依赖这些输入动作。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>保留这个组件。</li><li>如果发现手柄没有输入、UI 点不动、头显不追踪，应该优先检查这个组件和输入动作资源。</li></ul>
+<h3 id="section-10">XRInputModalityManager 组件</h3>
+<p>脚本：</p>
+<p><code>UnityEngine.XR.Interaction.Toolkit.Inputs.XRInputModalityManager</code></p>
+<p>主要参数：</p>
+<ul><li><code>Left Hand</code>：空。</li><li><code>Right Hand</code>：空。</li><li><code>Left Controller</code>：引用 <code>Left Controller</code>。</li><li><code>Right Controller</code>：引用 <code>Right Controller</code>。</li><li>模式切换事件：为空。</li></ul>
+<p>作用：</p>
+<ul><li>管理“手部追踪”和“控制器追踪”两种输入模式。</li><li>当前预置件只配置了控制器，没有配置裸手追踪对象。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>这符合目前 Oculus/Quest 手柄项目的需要。</li><li>如果以后要支持裸手追踪，再考虑补充手部对象。</li></ul>
+<h3 id="section-11">XRGazeAssistance 组件</h3>
+<p>脚本：</p>
+<p><code>UnityEngine.XR.Interaction.Toolkit.Interaction.Gaze.XRGazeAssistance</code></p>
+<p>状态：</p>
+<ul><li>默认禁用。</li></ul>
+<p>主要参数：</p>
+<ul><li><code>Gaze Interactor</code>：引用 <code>Gaze Interactor</code>。</li><li><code>Fallback Divergence</code>：<code>60</code>。</li><li><code>Hide Cursor With No Active Rays</code>：启用。</li><li><code>Ray Interactors</code>：包含左右传送射线。</li><li><code>Aim Assist Required Angle</code>：<code>30</code>。</li><li><code>Aim Assist Required Speed</code>：<code>0.25</code>。</li><li><code>Aim Assist Percent</code>：<code>0.8</code>。</li><li><code>Aim Assist Max Speed Percent</code>：<code>10</code>。</li></ul>
+<p>作用：</p>
+<ul><li>用于辅助凝视交互。</li><li>在用户通过视线选择对象时，帮助修正瞄准方向。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>先保持禁用。</li><li>主观实验中，如果用户只是看某个位置就触发选择，容易产生误操作。</li></ul>
+<h2 id="section-12">4. Camera Offset</h2>
+<p>路径：</p>
+<p><code>XR Origin (XR Rig)/Camera Offset</code></p>
+<p>组件：</p>
+<ul><li><code>Transform</code></li></ul>
+<p>作用：</p>
+<ul><li>作为头显和手柄追踪对象的父节点。</li><li>被 <code>XROrigin</code> 作为 <code>Camera Floor Offset Object</code> 使用。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>头显和手柄追踪对象应放在这里。</li><li>如果某个 UI 要跟着玩家整体位置走，但不跟着头部转动，可以放在 <code>XR Origin (XR Rig)</code> 下。</li><li>如果某个 UI 要永远贴在用户眼前，才应该放在 <code>Main Camera</code> 下。</li></ul>
+<h2 id="section-13">5. Main Camera</h2>
+<p>路径：</p>
+<p><code>XR Origin (XR Rig)/Camera Offset/Main Camera</code></p>
+<p>组件：</p>
+<ul><li><code>Transform</code></li><li><code>Camera</code></li><li><code>AudioListener</code></li><li><code>TrackedPoseDriver</code></li></ul>
+<h3 id="section-14">Transform</h3>
+<p>主要参数：</p>
+<ul><li>父节点：<code>Camera Offset</code></li><li>Local Position：<code>{x: 0, y: 0, z: 0}</code></li><li>Local Rotation：单位旋转</li><li>Local Scale：<code>{x: 1, y: 1, z: 1}</code></li></ul>
+<p>作用：</p>
+<ul><li>它的位置和旋转由头显追踪数据驱动。</li><li>通常不要手动控制这个 Transform。</li></ul>
+<h3 id="section-15">Camera 组件</h3>
+<p>主要参数：</p>
+<ul><li><code>Clear Flags</code>：Skybox。</li><li><code>Background Color</code>：<code>{r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}</code>。</li><li><code>Near Clip Plane</code>：<code>0.01</code>。</li><li><code>Far Clip Plane</code>：<code>1000</code>。</li><li><code>Field Of View</code>：<code>60</code>。</li><li><code>Culling Mask</code>：全部层。</li><li><code>Target Eye</code>：双眼。</li><li><code>HDR</code>：启用。</li><li><code>MSAA</code>：启用。</li></ul>
+<p>作用：</p>
+<ul><li>渲染 VR 双眼画面。</li></ul>
+<p>参数解释：</p>
+<ul><li><code>Near Clip Plane</code> 是最近可见距离，值小有利于近距离 UI 和手柄显示。</li><li><code>Far Clip Plane</code> 是最远可见距离。</li><li><code>Field Of View</code> 在 XR 中通常会被头显运行时控制，这里的值更多是编辑器或非 XR 模式参考。</li><li><code>Target Eye</code> 表示渲染到双眼。</li><li><code>Culling Mask</code> 控制哪些层会被相机看到。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>点云可能比较大，必要时可以调整 <code>Far Clip Plane</code>。</li><li>近距离 UI 多时，<code>Near Clip Plane</code> 保持较小比较合适。</li></ul>
+<h3 id="section-16">AudioListener 组件</h3>
+<p>作用：</p>
+<ul><li>从用户头部位置接收 3D 音频。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>一个场景里只能有一个激活的 <code>AudioListener</code>。</li><li>如果旧 <code>XR Origin</code> 里还有相机和 <code>AudioListener</code>，要禁用或删除旧的。</li></ul>
+<h3 id="section-17">TrackedPoseDriver 组件</h3>
+<p>脚本：</p>
+<p><code>UnityEngine.InputSystem.XR.TrackedPoseDriver</code></p>
+<p>主要参数：</p>
+<ul><li><code>Tracking Type</code>：位置和旋转。</li><li><code>Update Type</code>：默认更新和渲染前更新。</li><li><code>Ignore Tracking State</code>：关闭。</li><li><code>Position Input</code>：头显中心眼位置。</li><li><code>Rotation Input</code>：头显中心眼旋转。</li><li><code>Tracking State Input</code>：头显追踪状态。</li></ul>
+<p>作用：</p>
+<ul><li>用真实头显追踪数据驱动 <code>Main Camera</code> 的位置和旋转。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>这是 VR 头显正常工作的关键组件。</li><li>如果头显视角不动，优先检查这个组件和输入动作引用。</li></ul>
+<h2 id="section-18">6. Left Controller 和 Right Controller</h2>
+<p>路径：</p>
+<ul><li><code>XR Origin (XR Rig)/Camera Offset/Left Controller</code></li><li><code>XR Origin (XR Rig)/Camera Offset/Right Controller</code></li></ul>
+<p>左右手柄对象的组件结构基本一致：</p>
+<ul><li><code>Transform</code></li><li><code>ControllerInputActionManager</code></li><li><code>XRInteractionGroup</code></li><li><code>HapticImpulsePlayer</code></li><li><code>TrackedPoseDriver</code></li></ul>
+<p>可以这样理解：</p>
+<ul><li><code>Left Controller</code> / <code>Right Controller</code> 是真实手柄在 Unity 场景里的追踪对象。</li><li>它们下面挂着可视模型、近距离触碰交互器、远距离交互器和传送交互器。</li><li>它们本身负责接收手柄位姿、管理输入动作、管理手柄上的多个交互器。</li></ul>
+<h3 id="section-19">ControllerInputActionManager 组件</h3>
+<p>脚本：</p>
+<p><code>ControllerInputActionManager</code></p>
+<p>左手柄主要参数：</p>
+<ul><li><code>Ray Interactor</code>：空。</li><li><code>Near Far Interactor</code>：引用左手 <code>Near-Far Interactor</code>。</li><li><code>Teleport Interactor</code>：引用左手 <code>Teleport Interactor</code>。</li><li><code>Teleport Mode</code>：左手传送模式输入动作。</li><li><code>Teleport Mode Cancel</code>：左手取消传送输入动作。</li><li><code>Turn</code>：左手平滑转向输入动作。</li><li><code>Snap Turn</code>：左手快速转向输入动作。</li><li><code>Move</code>：左手移动输入动作。</li><li><code>UI Scroll</code>：左手 UI 滚动输入动作。</li><li><code>Smooth Motion Enabled</code>：启用。</li><li><code>Smooth Turn Enabled</code>：禁用。</li><li><code>Near Far Enable Teleport During Near Interaction</code>：启用。</li><li><code>UI Scrolling Enabled</code>：启用。</li></ul>
+<p>右手柄主要差异：</p>
+<ul><li>使用右手输入动作引用。</li><li><code>Smooth Motion Enabled</code>：禁用。</li><li><code>Smooth Turn Enabled</code>：禁用。</li></ul>
+<p>作用：</p>
+<ul><li>统一管理某只手柄上的输入动作和交互模式。</li><li>决定什么时候启用近远交互、什么时候启用传送、什么时候允许移动或转向。</li></ul>
+<p>参数解释：</p>
+<ul><li><code>Ray Interactor</code> 是旧式或简单射线交互器引用，这个预置件主要使用 <code>NearFarInteractor</code>，所以这里为空。</li><li><code>Near Far Interactor</code> 是主要的 UI 和物体交互器。</li><li><code>Teleport Interactor</code> 是专门用于传送的射线。</li><li><code>Teleport Mode</code> 是进入传送瞄准状态的输入动作。</li><li><code>Teleport Mode Cancel</code> 是取消传送瞄准的输入动作。</li><li><code>Turn</code> 对应平滑转向。</li><li><code>Snap Turn</code> 对应固定角度快速转向。</li><li><code>Move</code> 对应连续移动。</li><li><code>UI Scroll</code> 对应滚动 UI。</li><li><code>Smooth Motion Enabled</code> 决定这只手是否能驱动连续移动。</li><li><code>Smooth Turn Enabled</code> 决定这只手是否能驱动平滑转向。</li><li><code>UI Scrolling Enabled</code> 决定这只手是否能滚动 UI。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>主观质量评价通常需要稳定观察条件，建议先禁用连续移动和传送。</li><li>首页、设置页、打分页仍然需要近远 UI 交互，所以 <code>Near Far Interactor</code> 应保留。</li></ul>
+<h3 id="section-20">XRInteractionGroup 组件</h3>
+<p>脚本：</p>
+<p><code>UnityEngine.XR.Interaction.Toolkit.Interactors.XRInteractionGroup</code></p>
+<p>左手主要参数：</p>
+<ul><li><code>Group Name</code>：<code>Left</code></li><li><code>Starting Group Members</code>：左手 <code>Poke Interactor</code>、左手 <code>Near-Far Interactor</code></li><li><code>Starting Interaction Overrides Map</code>：左手 <code>Poke Interactor</code> 覆盖左手 <code>Near-Far Interactor</code></li></ul>
+<p>右手主要参数：</p>
+<ul><li><code>Group Name</code>：<code>Right</code></li><li><code>Starting Group Members</code>：右手 <code>Poke Interactor</code>、右手 <code>Near-Far Interactor</code></li><li><code>Starting Interaction Overrides Map</code>：右手 <code>Poke Interactor</code> 覆盖右手 <code>Near-Far Interactor</code></li></ul>
+<p>作用：</p>
+<ul><li>管理同一只手上的多个交互器。</li><li>避免近距离触碰和远距离射线同时争抢同一个选择行为。</li></ul>
+<p>参数解释：</p>
+<ul><li><code>Group Name</code> 是分组名称。</li><li><code>Starting Group Members</code> 是进入场景时自动加入该组的交互器。</li><li><code>Starting Interaction Overrides Map</code> 是交互优先级规则。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>保留这个组件。</li><li>它可以减少 UI 触碰、远程射线、点云选择之间的冲突。</li></ul>
+<h3 id="section-21">HapticImpulsePlayer 组件</h3>
+<p>脚本：</p>
+<p><code>UnityEngine.XR.Interaction.Toolkit.Inputs.Haptics.HapticImpulsePlayer</code></p>
+<p>主要参数：</p>
+<ul><li><code>Haptic Output</code>：左手或右手触觉输出动作。</li><li><code>Amplitude Multiplier</code>：<code>1</code>。</li></ul>
+<p>作用：</p>
+<ul><li>让手柄震动。</li><li>可用于按钮点击反馈、选择反馈、错误提示等。</li></ul>
+<p>参数解释：</p>
+<ul><li><code>Haptic Output</code> 指向对应手柄的震动输出。</li><li><code>Amplitude Multiplier</code> 是震动强度倍数。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>可以保留，但不一定要使用。</li><li>主观实验中震动可能干扰受试者感受，如果不需要可以不主动调用。</li></ul>
+<h3 id="section-22">手柄上的 TrackedPoseDriver 组件</h3>
+<p>脚本：</p>
+<p><code>UnityEngine.InputSystem.XR.TrackedPoseDriver</code></p>
+<p>主要参数：</p>
+<ul><li><code>Tracking Type</code>：位置和旋转。</li><li><code>Update Type</code>：默认更新和渲染前更新。</li><li><code>Position Input</code>：左手或右手控制器位置。</li><li><code>Rotation Input</code>：左手或右手控制器旋转。</li><li><code>Tracking State Input</code>：左手或右手控制器追踪状态。</li></ul>
+<p>作用：</p>
+<ul><li>用真实 VR 手柄的追踪数据驱动 Unity 中的手柄对象。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>必须保留。</li><li>UI 选择、点云点选、射线方向都依赖它。</li></ul>
+<h2 id="section-23">7. Controller Visual</h2>
+<p>路径：</p>
+<ul><li><code>Left Controller/Left Controller Visual</code></li><li><code>Right Controller/Right Controller Visual</code></li></ul>
+<p>来源预置件：</p>
+<ul><li><code>Prefabs/Controllers/XR Controller Left.prefab</code></li><li><code>Prefabs/Controllers/XR Controller Right.prefab</code></li></ul>
+<p>作用：</p>
+<ul><li>显示左右手柄模型。</li><li>包括手柄主体、扳机、摇杆、按钮、触摸板等可视部件。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>开发阶段建议保留，便于判断手柄位置和朝向是否正确。</li><li>实验阶段如果觉得干扰视觉，可以隐藏可视模型，但不要禁用手柄追踪和交互器。</li></ul>
+<h2 id="section-24">8. Poke Interactor</h2>
+<p>路径：</p>
+<ul><li><code>Left Controller/Poke Interactor</code></li><li><code>Right Controller/Poke Interactor</code></li></ul>
+<p>来源预置件：</p>
+<p><code>Prefabs/Interactors/Poke Interactor.prefab</code></p>
+<p>主要脚本：</p>
+<p><code>XRPokeInteractor</code></p>
+<p>主要参数：</p>
+<ul><li><code>Interaction Layers</code>：全部交互层。</li><li><code>Handedness</code>：由实例或父级上下文决定。</li><li><code>Attach Transform</code>：<code>Poke Point</code>。</li><li><code>Enable UI Interaction</code>：启用。</li></ul>
+<p>子对象：</p>
+<ul><li><code>Poke Point</code></li><li><code>Poke Point Affordances</code></li></ul>
+<p>作用：</p>
+<ul><li>支持近距离“戳/触碰”式交互。</li><li>当手柄靠近 UI 或可交互物体时，用 <code>Poke Point</code> 作为触碰点。</li></ul>
+<p>参数解释：</p>
+<ul><li><code>Interaction Layers</code> 决定它能触碰哪些交互层。</li><li><code>Attach Transform</code> 是实际触碰点。</li><li><code>Enable UI Interaction</code> 允许它触碰 Unity UI。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>如果 UI 面板放得比较近，可以使用。</li><li>如果用户主要通过射线点击 UI，那么它不是最关键组件。</li></ul>
+<h2 id="section-25">9. Near-Far Interactor</h2>
+<p>路径：</p>
+<ul><li><code>Left Controller/Near-Far Interactor</code></li><li><code>Right Controller/Near-Far Interactor</code></li></ul>
+<p>来源预置件：</p>
+<ul><li><code>Prefabs/Interactors/Left_NearFarInteractor.prefab</code></li><li><code>Prefabs/Interactors/Right_NearFarInteractor.prefab</code></li></ul>
+<p>主要脚本：</p>
+<p><code>NearFarInteractor</code></p>
+<p>主要参数：</p>
+<ul><li><code>Interaction Layers</code>：全部交互层。</li><li><code>Handedness</code>：左手或右手。</li><li><code>Allow Hovered Activate</code>：禁用。</li><li><code>Target Priority Mode</code>：<code>0</code>。</li><li><code>Enable UI Interaction</code>：启用。</li><li><code>Block UI On Interactable Selection</code>：启用。</li></ul>
+<p>作用：</p>
+<ul><li>同时支持近距离和远距离交互。</li><li>可以用于点击世界空间 UI，也可以用于选择 3D 可交互物体。</li></ul>
+<p>参数解释：</p>
+<ul><li><code>Interaction Layers</code> 控制可交互目标范围。</li><li><code>Handedness</code> 标识左右手。</li><li><code>Allow Hovered Activate</code> 控制是否允许悬停激活。</li><li><code>Target Priority Mode</code> 控制多个目标同时命中时的优先级。</li><li><code>Enable UI Interaction</code> 允许点击 UI。</li><li><code>Block UI On Interactable Selection</code> 表示正在选择 3D 物体时阻止 UI 交互。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>这是最值得保留的交互器。</li><li>首页按钮、设置面板、质量评分面板、JND 操作面板都可以依赖它。</li><li>将来做点云点选时，也可以先从这个交互器的射线逻辑入手，再按需要做自定义精确点选。</li></ul>
+<h2 id="section-26">10. Teleport Interactor</h2>
+<p>路径：</p>
+<ul><li><code>Left Controller/Teleport Interactor</code></li><li><code>Right Controller/Teleport Interactor</code></li></ul>
+<p>来源预置件：</p>
+<p><code>Prefabs/Interactors/Teleport Interactor.prefab</code></p>
+<p>主要脚本：</p>
+<p><code>XRRayInteractor</code></p>
+<p>主要参数：</p>
+<ul><li><code>Interaction Layers</code>：全部交互层。</li><li><code>Line Type</code>：曲线或抛物线式射线。</li><li><code>Max Raycast Distance</code>：<code>30</code>。</li><li><code>Hover To Select</code>：禁用。</li><li><code>Enable UI Interaction</code>：禁用。</li><li><code>Block UI On Interactable Selection</code>：启用。</li></ul>
+<p>作用：</p>
+<ul><li>专门用于传送。</li><li>它不是普通 UI 点击射线。</li></ul>
+<p>参数解释：</p>
+<ul><li><code>Line Type</code> 控制传送射线形状。</li><li><code>Max Raycast Distance</code> 是传送射线最大距离。</li><li><code>Hover To Select</code> 禁用表示不会仅靠悬停选择。</li><li><code>Enable UI Interaction</code> 禁用表示传送射线不点击 UI。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>主观质量评价通常不需要传送。</li><li>如果希望受试者固定在同一个观察位置，应禁用传送。</li></ul>
+<h2 id="section-27">11. Gaze Interactor</h2>
+<p>路径：</p>
+<p><code>Camera Offset/Gaze Interactor</code></p>
+<p>来源预置件：</p>
+<p><code>Prefabs/Interactors/Gaze Interactor.prefab</code></p>
+<p>主要脚本：</p>
+<p><code>XRGazeInteractor</code></p>
+<p>状态：</p>
+<ul><li>在 <code>XR Origin (XR Rig)</code> 中默认禁用。</li></ul>
+<p>主要参数：</p>
+<ul><li><code>Line Type</code>：直线。</li><li><code>Max Raycast Distance</code>：<code>30</code>。</li><li><code>Hover To Select</code>：启用。</li><li><code>Hover Time To Select</code>：<code>1</code>。</li><li><code>Enable UI Interaction</code>：启用。</li></ul>
+<p>作用：</p>
+<ul><li>用户看向某个 UI 或物体一段时间后，可以触发选择。</li></ul>
+<p>对当前项目的建议：</p>
+<ul><li>暂时保持禁用。</li><li>主观实验中用户会自然观察很多地方，如果凝视自动选择开启，容易产生误操作。</li></ul>
+                <nav class="pager"><a class="pager-link" href="xr-ray-interactor.html"><span>上一篇</span><strong>XR Ray Interactor</strong></a><a class="pager-link" href="xr-ui-setup-annotated-zh.html"><span>下一篇</span><strong>XR UI Setup 官方文档中文注释版</strong></a></nav>
+            </article>
+
+            <aside class="panel toc-panel">
+                <div class="toc-title">目录导航</div>
+                <ol class="toc-list"><li class="toc-item toc-item--lvl-1"><a href="#section-1">XR Origin (XR Rig) 预置件分析</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-2">1. 这个预置件是做什么的</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-3">2. 总体层级结构</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-4">3. 根对象：XR Origin (XR Rig)</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-5">GameObject</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-6">Transform</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-7">XROrigin 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-8">CharacterController 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-9">InputActionManager 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-10">XRInputModalityManager 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-11">XRGazeAssistance 组件</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-12">4. Camera Offset</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-13">5. Main Camera</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-14">Transform</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-15">Camera 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-16">AudioListener 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-17">TrackedPoseDriver 组件</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-18">6. Left Controller 和 Right Controller</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-19">ControllerInputActionManager 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-20">XRInteractionGroup 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-21">HapticImpulsePlayer 组件</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-22">手柄上的 TrackedPoseDriver 组件</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-23">7. Controller Visual</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-24">8. Poke Interactor</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-25">9. Near-Far Interactor</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-26">10. Teleport Interactor</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-27">11. Gaze Interactor</a></li></ol>
+            </aside>
+        </main>
+    </body>
+</html>

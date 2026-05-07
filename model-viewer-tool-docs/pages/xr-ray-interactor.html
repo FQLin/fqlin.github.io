@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="Home 场景里，真正负责“射线打出去并与 UI/模型发生交互”的组件是 XR Ray Interactor，不是 XR Interactor Line Visual。" />
+        <title>XR Ray Interactor | ModelViewerTool Docs</title>
+        <link rel="stylesheet" href="../assets/docs.css" />
+    </head>
+    <body>
+        <header class="hero hero--doc">
+            <div class="shell">
+                <a class="crumb" href="../index.html">← 返回 ModelViewerTool Docs</a>
+                <div class="hero-headline">
+                    <span class="chip">专题文档</span>
+                    <h1>XR Ray Interactor</h1>
+                </div>
+                <p class="hero-summary">Home 场景里，真正负责“射线打出去并与 UI/模型发生交互”的组件是 XR Ray Interactor，不是 XR Interactor Line Visual。</p>
+                <div class="hero-meta">
+                    <span>原始文件：XR Ray Interactor.md</span>
+                    <span>章节数：0</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="shell layout">
+            <article class="panel doc-panel">
+                <details class="toc-mobile">
+                    <summary>目录导航</summary>
+                    <p class="toc-empty">当前文档没有可折叠的目录。</p>
+                </details>
+                <p>Home 场景里，真正负责“射线打出去并与 UI/模型发生交互”的组件是 <code>XR Ray Interactor</code>，不是 <code>XR Interactor Line Visual</code>。</p>
+<p>它现在挂在这两个对象上：</p>
+<ul><li>左手控制器：<span class="file-ref"><strong>HomeScene.unity</strong><span class="file-ref__path">D:/项目/点云主观实验平台VR/ModelViewerTool/新版本Unity项目/ModelViewerTool/Assets/Scenes/HomeScene.unity:739</span></span> 里的 <code>LeftHand Controller</code>，对应的 <code>XR Ray Interactor</code> 在 <span class="file-ref"><strong>HomeScene.unity</strong><span class="file-ref__path">D:/项目/点云主观实验平台VR/ModelViewerTool/新版本Unity项目/ModelViewerTool/Assets/Scenes/HomeScene.unity:1043</span></span></li><li>右手控制器：<span class="file-ref"><strong>HomeScene.unity</strong><span class="file-ref__path">D:/项目/点云主观实验平台VR/ModelViewerTool/新版本Unity项目/ModelViewerTool/Assets/Scenes/HomeScene.unity:1373</span></span> 里的 <code>RightHand Controller</code>，对应的 <code>XR Ray Interactor</code> 在 <span class="file-ref"><strong>HomeScene.unity</strong><span class="file-ref__path">D:/项目/点云主观实验平台VR/ModelViewerTool/新版本Unity项目/ModelViewerTool/Assets/Scenes/HomeScene.unity:1677</span></span></li></ul>
+<p><code>XR Interactor Line Visual</code> 只是把那条射线画出来，不负责真正的命中和交互逻辑。</p>
+<p><strong>这个组件里各属性的作用</strong><br>左右手这两个 <code>XR Ray Interactor</code> 现在配置几乎一样，我按你场景里的当前配置解释：</p>
+<ul><li><code>Interaction Manager</code>：交互管理器。留空时通常自动找场景里的 <code>XR Interaction Manager</code>。</li><li><code>Interaction Layers</code>：这条射线能和哪些交互层的对象交互。你这里是全开。</li><li><code>Handedness</code>：手性标记，给系统区分左手/右手用。</li><li><code>Attach Transform</code>：抓取或选中后，物体“附着”的参考点。留空会自动生成/使用默认附着点。</li><li><code>Keep Selected Target Valid = 1</code>：选中后即使射线暂时没继续打到目标，也尽量保持这次选中有效。</li><li><code>Disable Visuals When Blocked In Group = 1</code>：如果被交互组里的别的交互器挡住，就把当前可视反馈关掉。</li><li><code>Starting Selected Interactable</code>：场景一开始默认就被选中的对象。你这里为空。</li><li><code>Starting Target Filter / Starting Hover Filters / Starting Select Filters</code>：启动时附加的目标过滤器。你这里都没配。</li><li><code>Hover Entered / Hover Exited / Select Entered / Select Exited</code>：悬停和选中时触发的事件回调。你这里都没绑。</li></ul>
+<p><strong>输入相关</strong></p>
+<ul><li><code>Select Input</code>：选中输入。通常对应扳机/Grip 的“选中”动作。</li><li><code>Activate Input</code>：激活输入。通常对应次级动作，比如按住后触发对象自己的功能。</li><li><code>Select Action Trigger = 1</code>：决定 Select 用“状态变化”还是“保持按住”之类的触发方式。</li><li><code>Allow Hovered Activate = 0</code>：没选中时，单靠悬停不允许发 Activate。</li><li><code>Hide Controller On Select = 0</code>：选中时不隐藏控制器模型。</li></ul>
+<p><strong>射线/轨迹相关</strong></p>
+<ul><li><code>Line Type = 0</code>：直线射线。不是抛物线，也不是贝塞尔曲线。</li><li><code>Blend Visual Line Points = 1</code>：让显示出来的线更贴合当前控制器姿态，减少“线尾巴跟不上手”的感觉。</li><li><code>Max Raycast Distance = 30</code>：直线射线最长 30。</li><li><code>Ray Origin Transform</code>：射线从哪里发出。留空时用默认附着点/控制器位姿。</li><li><code>Reference Frame</code>：曲线射线时的参考坐标系。你现在是直线，所以基本不生效。</li><li><code>Velocity / Acceleration / Additional Ground Height / Additional Flight Time / End Point Distance / End Point Height / Control Point Distance / Control Point Height</code>：这些主要给抛物线/贝塞尔曲线用。你当前直线模式下基本不用。</li><li><code>Sample Frequency = 20</code>：曲线采样点数量。直线模式影响很小。</li><li><code>Hit Detection Type = 0</code>：命中检测方式是 <code>Raycast</code>。不是球投射也不是锥投射。</li><li><code>Sphere Cast Radius = 0.1</code>：只有 <code>SphereCast</code> 时才重要。</li><li><code>Cone Cast Angle = 6</code>：只有 <code>ConeCast</code> 时才重要。</li><li><code>Live Cone Cast Debug Visuals = 0</code>：不显示锥投射调试图。</li></ul>
+<p><strong>碰撞/命中过滤</strong></p>
+<ul><li><code>Raycast Mask = 全部层</code>：对所有 Layer 都可以做射线检测。</li><li><code>Raycast Trigger Interaction = 1</code>：是否命中 Trigger Collider 的策略。</li><li><code>Raycast Snap Volume Interaction = 1</code>：是否把 Snap Volume 这类触发体也算进来。</li><li><code>Hit Closest Only = 0</code>：不是只取最近一个目标，允许多目标 hover。</li></ul>
+<p><strong>悬停自动选中</strong></p>
+<ul><li><code>Hover To Select = 0</code>：不会只靠悬停一段时间就自动选中。</li><li><code>Hover Time To Select = 0.5</code>：如果将来开启自动选中，需要悬停 0.5 秒。</li><li><code>Auto Deselect = 0</code>：不会自动取消选中。</li><li><code>Time To Auto Deselect = 3</code>：如果以后开启自动取消，持续 3 秒后取消。</li></ul>
+<p><strong>UI 交互</strong></p>
+<ul><li><code>Enable UI Interaction = 1</code>：允许这条射线像鼠标一样点 World Space UI。</li><li><code>Block Interactions With Screen Space UI = 0</code>：不会因为被屏幕空间 UI 挡住就禁用 3D 交互。</li><li><code>Block UI On Interactable Selection = 1</code>：当这条射线已经在选中一个交互物体时，会阻止它再去点 UI。</li><li><code>UI Hover Entered / UI Hover Exited</code>：进入/离开 UI 时的事件。你这里没绑。</li><li><code>UI Press Input</code>：点 UI 按钮时用的输入。</li><li><code>UI Scroll Input</code>：滚动 UI 列表时用的输入。</li></ul>
+<p><strong>选中后沿射线操控物体</strong></p>
+<ul><li><code>Manipulate Attach Transform = 1</code>：允许用摇杆去调“附着点”，也就是让被选中的物体沿射线前后移动、旋转，甚至缩放。</li><li><code>Use Force Grab = 0</code>：不是强制把物体瞬间拉到手边，而是保留远距离交互风格。</li><li><code>Rotate Speed = 180</code>：旋转速度。</li><li><code>Translate Speed = 1</code>：沿射线前后推拉的速度。</li><li><code>Rotate Reference Frame</code>：旋转参考坐标系。留空时用默认。</li><li><code>Rotate Mode = 0</code>：按“持续旋转”模式处理，不是“摇杆方向直接匹配朝向”。</li><li><code>Translate Manipulation Input</code>：沿射线前后移动物体的输入。</li><li><code>Rotate Manipulation Input</code>：旋转物体的输入。</li><li><code>Directional Manipulation Input</code>：按方向匹配旋转时使用的输入。</li><li><code>Scale Mode = 0</code>：当前缩放模式关闭。</li><li><code>Scale Toggle Input / Scale Over Time Input</code>：切换到缩放或持续缩放时使用的输入。现在保留了输入槽，但因为 <code>Scale Mode = None</code>，默认不生效。</li></ul>
+<p><strong>AR 相关</strong></p>
+<ul><li><code>Enable AR Raycasting = 0</code></li><li><code>Occlude AR Hits With 3D Objects = 0</code></li><li><code>Occlude AR Hits With 2D Objects = 0</code></li></ul>
+<p>这些是给 AR 场景准备的，你这个 Oculus VR Home 场景基本用不到。</p>
+<p>如果你愿意，我下一步可以继续帮你把 Home 场景里“右手这个 <code>XR Ray Interactor</code> + <code>XR Interactor Line Visual</code> + <code>UI Press</code> 这套链路”画成一张中文结构图，直接对应到你现在的项目层级。</p>
+                <nav class="pager"><a class="pager-link" href="vr-migration-incompatible-items.html"><span>上一篇</span><strong>VR 项目不适用项迁移清单</strong></a><a class="pager-link" href="xr-origin-xri-prefab-analysis.html"><span>下一篇</span><strong>XR Origin (XR Rig) 预置件分析</strong></a></nav>
+            </article>
+
+            <aside class="panel toc-panel">
+                <div class="toc-title">目录导航</div>
+                <p class="toc-empty">当前文档没有可折叠的目录。</p>
+            </aside>
+        </main>
+    </body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="本文档不是官方文档翻译，而是结合当前项目本地安装的 NearFarInteractor.cs 做的一份源码阅读笔记。" />
+        <title>NearFarInteractor 源码阅读笔记 | ModelViewerTool Docs</title>
+        <link rel="stylesheet" href="../assets/docs.css" />
+    </head>
+    <body>
+        <header class="hero hero--doc">
+            <div class="shell">
+                <a class="crumb" href="../index.html">← 返回 ModelViewerTool Docs</a>
+                <div class="hero-headline">
+                    <span class="chip">源码笔记</span>
+                    <h1>NearFarInteractor 源码阅读笔记</h1>
+                </div>
+                <p class="hero-summary">本文档不是官方文档翻译，而是结合当前项目本地安装的 NearFarInteractor.cs 做的一份源码阅读笔记。</p>
+                <div class="hero-meta">
+                    <span>原始文件：NearFarInteractor-源码阅读笔记.md</span>
+                    <span>章节数：22</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="shell layout">
+            <article class="panel doc-panel">
+                <details class="toc-mobile">
+                    <summary>目录导航</summary>
+                    <ol class="toc-list"><li class="toc-item toc-item--lvl-1"><a href="#section-1">NearFarInteractor 源码阅读笔记</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-2">源码来源</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-3">1. 这份源码笔记关注什么</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-4">2. `Awake()` 里最先做的一件事</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-5">3. 缺少核心组件时会自动补</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-6">3.1 远距离 Caster</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-7">3.2 近距离 Caster</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-8">3.3 Attach Controller</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-9">4. UI 交互不是单纯一个布尔值</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-10">5. `OnEnable()` / `OnDisable()` 做了什么</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-11">`OnEnable()`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-12">`OnDisable()`</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-13">6. 每一帧的核心流程</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-14">7. `selectionRegion` 是怎么判断的</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-15">8. 近距和远距的优先关系</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-16">近距逻辑</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-17">远距逻辑</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-18">9. 它会比较 2D UI 命中和 3D 命中</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-19">10. 目前只支持一个有效目标</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-20">11. 排序和过滤的一个细节</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-21">12. 对项目实践最有价值的结论</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-22">13. 一句话结论</a></li></ol>
+                </details>
+                <h1 id="section-1">NearFarInteractor 源码阅读笔记</h1>
+<p>本文档不是官方文档翻译，而是结合当前项目本地安装的 <code>NearFarInteractor.cs</code> 做的一份源码阅读笔记。</p>
+<h2 id="section-2">源码来源</h2>
+<ul><li>Unity 包版本：<code>com.unity.xr.interaction.toolkit 3.4.1</code></li><li>源码文件：</li></ul>
+<p><code>Library/PackageCache/com.unity.xr.interaction.toolkit@4612b35e2aac/Runtime/Interaction/Interactors/NearFarInteractor.cs</code></p>
+<h2 id="section-3">1. 这份源码笔记关注什么</h2>
+<p>主要关注三类信息：</p>
+<ul><li>官方文档里提到但不够直观的行为</li><li>运行时到底会自动做什么</li><li>近距、远距、UI 之间到底怎么切换</li></ul>
+<h2 id="section-4">2. <code>Awake()</code> 里最先做的一件事</h2>
+<p>源码里 <code>Awake()</code> 的顺序很值得注意：</p>
+<ol><li>先 <code>InitializeReferences()</code></li><li>再 <code>base.Awake()</code></li></ol>
+<p>这意味着：</p>
+<ul><li>它会尽量先把自己依赖的核心组件找齐</li><li>然后再走基类初始化流程</li></ul>
+<p>这是一个比较关键的实现点，因为它确保了 <code>attachTransform</code> 在早期就能准备好。</p>
+<h2 id="section-5">3. 缺少核心组件时会自动补</h2>
+<p><code>InitializeReferences()</code> 里做了三件核心事：</p>
+<h3 id="section-6">3.1 远距离 Caster</h3>
+<p>如果 <code>farInteractionCaster</code> 为空：</p>
+<ul><li>先尝试找当前对象上已有的 <code>ICurveInteractionCaster</code></li><li>找不到就自动 <code>AddComponent&lt;CurveInteractionCaster&gt;()</code></li></ul>
+<h3 id="section-7">3.2 近距离 Caster</h3>
+<p>如果 <code>nearInteractionCaster</code> 为空：</p>
+<ul><li>先找当前对象上已有的 <code>IInteractionCaster</code></li><li>但它会跳过那些同时也是 <code>ICurveInteractionCaster</code> 的组件</li><li>也就是说，它不会把远距 Caster 误当成近距 Caster</li><li>如果最终没找到，就自动 <code>AddComponent&lt;SphereInteractionCaster&gt;()</code></li></ul>
+<p>这个细节说明：</p>
+<blockquote>官方已经考虑到了“远距 Caster 也实现了基础接口，所以不能乱认”的问题。</blockquote>
+<h3 id="section-8">3.3 Attach Controller</h3>
+<p>如果 <code>interactionAttachController</code> 为空：</p>
+<ul><li>先找当前对象上已有的 <code>IInteractionAttachController</code></li><li>找不到就自动 <code>AddComponent&lt;InteractionAttachController&gt;()</code></li></ul>
+<p>最后还会执行：</p>
+<ul><li><code>attachTransform = interactionAttachController.GetOrCreateAnchorTransform()</code></li></ul>
+<p>也就是说：</p>
+<blockquote>附着锚点不是可有可无的，它会在初始化阶段被明确创建或拿到。</blockquote>
+<h2 id="section-9">4. UI 交互不是单纯一个布尔值</h2>
+<p><code>enableUIInteraction</code> 的 setter 里，不只是把布尔值改掉。<br>它还会调用：</p>
+<ul><li><code>RegisterOrUnregisterXRUIInputModule(m_EnableUIInteraction)</code></li></ul>
+<p>这说明：</p>
+<ul><li>UI 交互开关不只是“逻辑判断”</li><li>它还会影响和 <code>XRUIInputModule</code> 的注册关系</li></ul>
+<p>也就是说，改这个值时，系统会同步处理 UI 注册状态。</p>
+<h2 id="section-10">5. <code>OnEnable()</code> / <code>OnDisable()</code> 做了什么</h2>
+<h3 id="section-11"><code>OnEnable()</code></h3>
+<p>如果 UI 交互开启，会执行 <code>UpdateUIRegistration()</code>。</p>
+<h3 id="section-12"><code>OnDisable()</code></h3>
+<p>会做几件事：</p>
+<ul><li>取消向 <code>XRUIInputModule</code> 的注册</li><li>如果启用了 UI Toolkit 世界空间支持，也会从对应系统中注销</li><li>调用 <code>InitializeInteractor()</code> 清空本轮交互缓存</li></ul>
+<p>这说明：</p>
+<ul><li>它对 UI 注册状态的管理是比较完整的</li><li>不是只在首次启动时注册一次就不管了</li></ul>
+<h2 id="section-13">6. 每一帧的核心流程</h2>
+<p>在 <code>PreprocessInteractor(UpdatePhase.Dynamic)</code> 里，核心顺序是：</p>
+<ol><li><code>InitializeInteractor()</code></li><li><code>UpdateAnchor()</code></li><li><code>DetermineSelectionRegion()</code></li><li><code>EvaluateNearInteraction()</code></li><li><code>EvaluateFarInteraction(newSelectionRegion)</code></li><li><code>UpdateSelectionRegion(newSelectionRegion)</code></li><li>如启用 UI Toolkit 支持，再处理对应事件</li></ol>
+<p>这条顺序很重要，因为它告诉我们：</p>
+<ul><li>先更新附着点</li><li>再判断当前是 Near 还是 Far</li><li>再依次评估近距和远距命中</li></ul>
+<h2 id="section-14">7. <code>selectionRegion</code> 是怎么判断的</h2>
+<p><code>DetermineSelectionRegion()</code> 的逻辑很直接：</p>
+<ul><li>如果当前没有选择，返回 <code>None</code></li><li>如果有选择，则看 <code>interactionAttachController.hasOffset</code></li><li>有偏移就是 <code>Far</code></li><li>没偏移就是 <code>Near</code></li></ul>
+<p>这意味着一个很关键的行为：</p>
+<blockquote>某个对象最开始可能是通过远距离选中的，但如果它被拉近到没有偏移，<code>selectionRegion</code> 会从 <code>Far</code> 变成 <code>Near</code>。</blockquote>
+<p>这也是官方文档里“Far 选中后可能变成 Near”的源码依据。</p>
+<h2 id="section-15">8. 近距和远距的优先关系</h2>
+<h3 id="section-16">近距逻辑</h3>
+<p><code>EvaluateNearInteraction()</code> 里，如果满足下面任一条件，就不会继续：</p>
+<ul><li>没开启近距探测</li><li>当前已经有选中对象</li><li>近距 Caster 没找到有效 Collider</li></ul>
+<p>也就是说：</p>
+<ul><li>近距逻辑更偏向“未选中时找手边目标”</li><li>不是那种选中了还一直靠近重新抢目标的设计</li></ul>
+<h3 id="section-17">远距逻辑</h3>
+<p><code>EvaluateFarInteraction()</code> 里有两个关键条件：</p>
+<ul><li>如果没开远距探测，且当前也不是 Far 选中，就不更新远距</li><li>如果近距已经先找到有效目标，则直接不处理远距</li></ul>
+<p>这说明一个很重要的优先级规则：</p>
+<blockquote>同一帧里，如果近距先拿到有效目标，远距通常让路。</blockquote>
+<p>这也符合交互直觉：</p>
+<ul><li>手边真有能抓的东西时，优先按近距处理</li><li>不要让远处射线抢走焦点</li></ul>
+<h2 id="section-18">9. 它会比较 2D UI 命中和 3D 命中</h2>
+<p>远距逻辑不是只看 3D Collider。</p>
+<p>它还会：</p>
+<ul><li>取当前 UI 的 <code>RaycastResult</code></li><li>计算 UI 命中距离</li><li>计算 3D 命中距离</li><li>比较两者谁更应该被处理</li></ul>
+<p>更容易理解地说：</p>
+<blockquote>它不是“只要打到 3D 就不管 UI”，而是会在 UI 和 3D 之间做优先级比较。</blockquote>
+<p>这对于带有 World Space UI 和 3D 模型同时存在的 VR 场景很重要。</p>
+<h2 id="section-19">10. 目前只支持一个有效目标</h2>
+<p>源码里有一个明确字段：</p>
+<ul><li><code>m_AllowMultipleValidTargets = false</code></li></ul>
+<p>并且注释写得很清楚：</p>
+<ul><li>当前只支持一个有效目标</li><li>未来可能再扩展为多个</li></ul>
+<p>这意味着：</p>
+<ul><li>它内部虽然可能会暂存多个候选</li><li>但最终对外主要还是按“单一有效目标”这个思路工作</li></ul>
+<h2 id="section-20">11. 排序和过滤的一个细节</h2>
+<p>近距和远距目标注册时都会考虑 <code>targetFilter</code>。</p>
+<p>一个值得注意的细节是：</p>
+<ul><li>如果有 <code>targetFilter</code>，很多情况下排序会交给 filter</li><li><code>sortNearTargetsAfterTargetFilter</code> 只适合“filter 本身不排序”的情况</li></ul>
+<p>这说明：</p>
+<ul><li>这个选项不是默认都该开</li><li>它是给进阶过滤逻辑准备的</li></ul>
+<h2 id="section-21">12. 对项目实践最有价值的结论</h2>
+<p>综合源码，最值得记住的是这几条：</p>
+<ol><li><code>NearFarInteractor</code> 运行时确实会自动补默认组件</li><li>但项目里最好还是显式挂好，方便排查</li><li>它的 UI 交互开关会影响注册状态，不只是变量值</li><li>近距优先级通常高于远距</li><li>远距逻辑会同时权衡 UI 命中和 3D 命中</li><li><code>selectionRegion</code> 会随着对象被拉近而变化</li></ol>
+<h2 id="section-22">13. 一句话结论</h2>
+<p>从源码看，<code>NearFarInteractor</code> 的设计重点不是“单纯打一条线”，<br>而是“用一套统一交互器，把近距、远距、UI、附着点和状态切换统筹起来”。</p>
+                <nav class="pager"><a class="pager-link" href="near-far-interactor-split-archive.html"><span>上一篇</span><strong>NearFarInteractor 拆分归档目录</strong></a><a class="pager-link" href="tracked-device-graphic-raycaster-annotated-zh.html"><span>下一篇</span><strong>TrackedDeviceGraphicRaycaster 官方文档中文注释版</strong></a></nav>
+            </article>
+
+            <aside class="panel toc-panel">
+                <div class="toc-title">目录导航</div>
+                <ol class="toc-list"><li class="toc-item toc-item--lvl-1"><a href="#section-1">NearFarInteractor 源码阅读笔记</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-2">源码来源</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-3">1. 这份源码笔记关注什么</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-4">2. `Awake()` 里最先做的一件事</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-5">3. 缺少核心组件时会自动补</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-6">3.1 远距离 Caster</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-7">3.2 近距离 Caster</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-8">3.3 Attach Controller</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-9">4. UI 交互不是单纯一个布尔值</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-10">5. `OnEnable()` / `OnDisable()` 做了什么</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-11">`OnEnable()`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-12">`OnDisable()`</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-13">6. 每一帧的核心流程</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-14">7. `selectionRegion` 是怎么判断的</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-15">8. 近距和远距的优先关系</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-16">近距逻辑</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-17">远距逻辑</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-18">9. 它会比较 2D UI 命中和 3D 命中</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-19">10. 目前只支持一个有效目标</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-20">11. 排序和过滤的一个细节</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-21">12. 对项目实践最有价值的结论</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-22">13. 一句话结论</a></li></ol>
+            </aside>
+        </main>
+    </body>
+</html>

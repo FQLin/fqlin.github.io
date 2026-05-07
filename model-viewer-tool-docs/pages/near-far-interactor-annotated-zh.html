@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="本文档用于归档 Unity XR Interaction Toolkit 3.4.1 中 NearFarInteractor 相关官方文档的中文翻译，并补充一些更容易理解的说明，方便在当前 VR 点云实验项目中长期查阅。" />
+        <title>NearFarInteractor 官方文档中文注释版 | ModelViewerTool Docs</title>
+        <link rel="stylesheet" href="../assets/docs.css" />
+    </head>
+    <body>
+        <header class="hero hero--doc">
+            <div class="shell">
+                <a class="crumb" href="../index.html">← 返回 ModelViewerTool Docs</a>
+                <div class="hero-headline">
+                    <span class="chip">官方注释</span>
+                    <h1>NearFarInteractor 官方文档中文注释版</h1>
+                </div>
+                <p class="hero-summary">本文档用于归档 Unity XR Interaction Toolkit 3.4.1 中 NearFarInteractor 相关官方文档的中文翻译，并补充一些更容易理解的说明，方便在当前 VR 点云实验项目中长期查阅。</p>
+                <div class="hero-meta">
+                    <span>原始文件：NearFarInteractor-官方文档中文注释版.md</span>
+                    <span>章节数：34</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="shell layout">
+            <article class="panel doc-panel">
+                <details class="toc-mobile">
+                    <summary>目录导航</summary>
+                    <ol class="toc-list"><li class="toc-item toc-item--lvl-1"><a href="#section-1">NearFarInteractor 官方文档中文注释版</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-2">文档来源</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-3">1. NearFarInteractor 是什么</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-4">官方原意翻译</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-5">更容易理解的注释</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-6">2. 官方属性表中文翻译 + 注释</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-7">3. 官方枚举说明中文翻译 + 注释</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-8">3.1 `Region`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-9">3.2 `NearCasterSortingStrategy`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-10">3.3 `InteractorFarAttachMode`</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-11">4. 官方 Usage 部分中文翻译 + 注释</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-12">官方原意翻译</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-13">更容易理解的注释</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-14">5. 相关组件补充说明</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-15">5.1 `InteractionAttachController`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-16">5.2 `CurveInteractionCaster`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-17">5.3 `SphereInteractionCaster`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-18">5.4 `CurveVisualController`</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-19">6. XR UI 官方要求，和本项目最相关的部分</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-20">6.1 Canvas 必须是 World Space</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-21">6.2 Canvas 上要有 `Tracked Device Graphic Raycaster`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-22">6.3 场景里要有 `EventSystem + XRUIInputModule`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-23">6.4 `NearFarInteractor` 本身要启用 UI 交互</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-24">7. 在当前项目里应该怎么用</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-25">7.1 首页场景 Home</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-26">7.2 质量评价场景 Quality Rating</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-27">7.3 JND 场景</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-28">8. 最容易踩的坑</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-29">8.1 把 XR 交互层和 Unity 物理层混为一谈</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-30">8.2 只有线，没有交互</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-31">8.3 有 UI 交互，但 3D 模型点不到</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-32">8.4 远距离抓取体验不对</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-33">9. 推荐的理解顺序</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-34">10. 一句话版结论</a></li></ol>
+                </details>
+                <h1 id="section-1">NearFarInteractor 官方文档中文注释版</h1>
+<p>本文档用于归档 Unity <code>XR Interaction Toolkit 3.4.1</code> 中 <code>NearFarInteractor</code> 相关官方文档的中文翻译，并补充一些更容易理解的说明，方便在当前 VR 点云实验项目中长期查阅。</p>
+<h2 id="section-2">文档来源</h2>
+<ul><li>Unity 包版本：<code>com.unity.xr.interaction.toolkit 3.4.1</code></li><li>官方原文 1：</li></ul>
+<p><code>Library/PackageCache/com.unity.xr.interaction.toolkit@4612b35e2aac/Documentation~/near-far-interactor.md</code></p>
+<ul><li>官方原文 2：</li></ul>
+<p><code>Library/PackageCache/com.unity.xr.interaction.toolkit@4612b35e2aac/Documentation~/interaction-attach-controller.md</code></p>
+<ul><li>参考原文 3：</li></ul>
+<p><code>Library/PackageCache/com.unity.xr.interaction.toolkit@4612b35e2aac/Documentation~/curve-visual-controller.md</code></p>
+<ul><li>参考原文 4：</li></ul>
+<p><code>Library/PackageCache/com.unity.xr.interaction.toolkit@4612b35e2aac/Documentation~/ui-setup.md</code></p>
+<ul><li>参考原文 5：</li></ul>
+<p><code>Library/PackageCache/com.unity.xr.interaction.toolkit@4612b35e2aac/Documentation~/tracked-device-graphic-raycaster.md</code></p>
+<h2 id="section-3">1. NearFarInteractor 是什么</h2>
+<h3 id="section-4">官方原意翻译</h3>
+<p><code>NearFarInteractor</code> 是一种同时使用“近距离交互探测器”和“远距离交互探测器”的 Interactor。它可以在不同交互方式之间进行平滑切换，同时还能利用远距离交互探测器的数据与 UGUI 进行交互。</p>
+<p>这个 Interactor 在设计上强调模块化和可扩展性。高级开发者可以实现自定义的近距离探测器和远距离探测器，它们分别需要遵循 <code>IInteractionCaster</code> 和 <code>ICurveInteractionCaster</code> 接口。</p>
+<p><code>IInteractionAttachController</code> 接口允许开发者实现自定义的附着控制器，用来控制 attach transform 的平移和旋转。默认实现支持基于距离的速度缩放，可以在远距离时把物体拉向用户，同时兼容手势跟踪和控制器跟踪。</p>
+<p>为了配合这个 Interactor，官方还提供了一个可视化控制组件 <code>CurveVisualController</code>。它通过 <code>ICurveInteractionDataProvider</code> 接口获取曲线所需的数据，从而以更灵活的方式把交互曲线显示出来。</p>
+<p>这个 Interactor 旨在整合 <code>XRDirectInteractor</code> 和 <code>XRRayInteractor</code> 的功能，但目前有两个需要注意的缺口：</p>
+<ul><li>对于移动端 AR 设备，仍然需要 <code>XRRayInteractor</code> 来做 AR 数据射线检测，因为 <code>NearFarInteractor</code> 目前还不支持这个用例。</li><li>官方文档这里写的是：<code>NearFarInteractor</code> 还不支持像 <code>XRRayInteractor</code> 那样直接使用摇杆控制 attach transform 的平移、旋转和缩放。</li></ul>
+<h3 id="section-5">更容易理解的注释</h3>
+<ul><li>你可以把它理解成“新版统一交互器”。</li><li>老思路通常是：</li></ul>
+<p>一个 <code>XRDirectInteractor</code> 负责近距离抓取，<br>一个 <code>XRRayInteractor</code> 负责远距离射线。</p>
+<ul><li>新思路则是：</li></ul>
+<p>一个 <code>NearFarInteractor</code> 统一管理近距、远距、UI 点击，以及远距离选中后的附着逻辑。</p>
+<p>一句人话总结：</p>
+<blockquote><code>NearFarInteractor</code> 不是单纯的一条射线，而是一整套“近距 + 远距 + UI + 附着控制”的交互总控。</blockquote>
+<p>还要特别注意：</p>
+<ul><li>它不是那条“可见的线”本身。</li><li>线的视觉通常由 <code>CurveVisualController + LineRenderer</code> 负责。</li><li>真正决定“能不能选中目标”的，是 <code>NearFarInteractor</code> 和它挂接的各种 Caster。</li></ul>
+<h2 id="section-6">2. 官方属性表中文翻译 + 注释</h2>
+<div class="table-wrap"><table><thead><tr><th>属性</th><th>官方含义翻译</th><th>更容易理解的注释</th></tr></thead><tbody><tr><td><code>Interaction Manager</code></td><td>当前 Interactor 要通信的 XR Interaction Manager。如果为空，会自动寻找。</td><td>一般就是场景里的总交互管理器。大多数情况下可以留空，让系统自己找。</td></tr><tr><td><code>Interaction Layer Mask</code></td><td>只允许与交互层有重叠的 Interactable 发生交互。</td><td>这是 XR 的“交互层”，不是普通的 Unity Layer。能不能选中对象，先看这里匹不匹配。</td></tr><tr><td><code>Select Action Trigger</code></td><td>定义选中状态如何由输入触发，例如按住、悬停时按下、切换式开关、粘性切换等。</td><td>简单理解就是：扳机的“选中”到底是按住生效，还是点一下切换生效。</td></tr><tr><td><code>Keep Selected Target Valid</code></td><td>首次选中后，即使不再触碰或指向目标，也继续保持选中。建议抓取物体时为 true，传送时为 false。</td><td>做抓取类交互时通常建议开着，不然手一抖或射线偏一下就掉选中。</td></tr><tr><td><code>Allow Hovered Activate</code></td><td>当当前没有选中对象时，允许对“仅悬停”的对象发送激活和取消激活事件。</td><td>这个更像“次级动作”开关。一般初期可以先保持默认。</td></tr><tr><td><code>Target Priority Mode</code></td><td>指定 <code>Targets For Selection</code> 中应该追踪多少个目标，适合自定义反馈，选项按性能从高到低排列。</td><td>只有你做复杂提示逻辑时才需要深究。大多数情况下先用默认值。</td></tr><tr><td><code>Starting Selected Interactable</code></td><td>启动时自动选中的 Interactable，可为空。</td><td>一般不用。除非你想让某个东西一开场就被“拿在手里”。</td></tr><tr><td><code>Parent Interactable</code></td><td>可选的父级 Interactable 依赖，用于决定处理顺序。</td><td>偏高级用法。当前项目通常不用手配。</td></tr><tr><td><code>Auto Find Parent Interactable</code></td><td>注册到管理器时，是否自动向上查找父级 Interactable。关闭后可手动设置，以提高启动性能。</td><td>默认开着更省心。只有你明确要做极致优化时再关。</td></tr><tr><td><code>Interaction Attach Controller</code></td><td>控制 attach transform 的附着控制器引用。</td><td>这是“远距离选中后物体怎么跟着走”的关键组件。</td></tr><tr><td><code>Enable Near Casting</code></td><td>是否启用近距离探测器。默认 true。</td><td>开了以后，手靠近物体时就能走近距离交互。</td></tr><tr><td><code>Near Caster</code></td><td>近距离交互探测组件，必须实现 <code>IInteractionCaster</code>。</td><td>常见默认实现是 <code>SphereInteractionCaster</code>，也就是在手附近做球形探测。</td></tr><tr><td><code>Sorting Strategy</code></td><td>近距离探测命中的目标如何排序。可选 <code>None</code>、<code>SquareDistance</code>、<code>InteractableBased</code>、<code>ClosestPointOnCollider</code>。</td><td>目标很多时，决定“优先选谁”。默认策略通常够用。</td></tr><tr><td><code>Sort Near Targets After Target Filter</code></td><td>是否在目标过滤后再对近距目标排序。仅当设置了 target filter 且 filter 本身不排序时有意义。</td><td>先不用动。属于偏深入的排序细节。</td></tr><tr><td><code>Enable Far Casting</code></td><td>是否启用远距离探测器。默认 true。</td><td>开了以后，才能打出射线或曲线去点远处 UI / 模型。</td></tr><tr><td><code>Far Caster</code></td><td>远距离交互探测组件，必须实现 <code>ICurveInteractionCaster</code>。</td><td>常见默认实现是 <code>CurveInteractionCaster</code>。</td></tr><tr><td><code>Far Attach Mode</code></td><td>远距离选中时，附着点应该如何调整。通常决定物体是留在远处，还是被拉到手边。</td><td>这是非常关键的体验开关。对于点云展示，通常更适合 <code>Far</code>。</td></tr><tr><td><code>UI Interaction</code></td><td>是否允许该 Interactor 与 UI 元素交互。默认 true。</td><td>要点 World Space Canvas 上的按钮，这里必须开。</td></tr><tr><td><code>Block UI On Interactable Selection</code></td><td>当已经选中了一个 Interactable 时，是否阻止 UI 交互。默认 true。</td><td>防止“抓着模型时顺手又误点了 UI”。实验项目里通常建议保留 true。</td></tr><tr><td><code>UI Press Input</code></td><td>用于按下 UI 元素的输入，类似鼠标左键。实现为 <code>XRInputButtonReader</code>。</td><td>这个决定了你拿射线对准按钮后，用哪个按键算“点击”。</td></tr><tr><td><code>UI Scroll Input</code></td><td>用于滚动 UI 的输入，类似鼠标滚轮。实现为 <code>XRInputValueReader&lt;Vector2&gt;</code>。</td><td>如果面板里以后有滚动列表，这个才更重要。</td></tr><tr><td><code>Select Input</code></td><td>用于选中 Interactable 的输入。</td><td>一般对应扳机或 Grip。</td></tr><tr><td><code>Activate Input</code></td><td>用于激活 Interactable 的输入，可触发对象的次级动作。</td><td>可以理解成“选中之外的第二个动作键”。</td></tr><tr><td><code>Interactor Filters</code></td><td>参见官方的 <code>Interaction Filters</code> 页面。</td><td>用于进一步控制“哪些目标可以被交互”，属于进阶功能。</td></tr><tr><td><code>Interactor Events</code></td><td>参见官方的 <code>Interactor Events</code> 页面。</td><td>主要用于在 Inspector 里挂事件回调。</td></tr></tbody></table></div>
+<h2 id="section-7">3. 官方枚举说明中文翻译 + 注释</h2>
+<h3 id="section-8">3.1 <code>Region</code></h3>
+<p>官方含义：由 <code>selectionRegion</code> 属性使用，用来表示当前选择发生在近距离区域还是远距离区域。</p>
+<ul><li><code>None</code>：当前没有发生选择。</li><li><code>Near</code>：当前通过近距离交互发生选择。</li><li><code>Far</code>：当前通过远距离交互发生选择。</li></ul>
+<p>更容易理解的注释：</p>
+<ul><li>这是系统在内部标记“这次交互属于近距还是远距”。</li><li>如果后面你要做不同提示效果，例如近距离时显示抓取提示、远距离时显示射线提示，这个状态会很有用。</li></ul>
+<h3 id="section-9">3.2 <code>NearCasterSortingStrategy</code></h3>
+<p>官方含义：定义近距离探测发现多个有效目标时，该如何排序。</p>
+<ul><li><code>None</code>：不排序。</li><li><code>SquareDistance</code>：按 Interactor 与 Interactable 附着点的平方距离排序，效率最高。</li><li><code>InteractableBased</code>：按 Interactable 自身定义的排序策略排序，通常与 Collider 有关。</li><li><code>ClosestPointOnCollider</code>：按 Interactor 附着点与目标 Collider 最近点之间的平方距离排序，适合高精度区分。</li></ul>
+<p>更容易理解的注释：</p>
+<ul><li>当手附近同时挨着多个物体时，系统必须决定“优先算你碰到谁”。</li><li>如果你的场景里只会同时接近一两个对象，默认通常已经足够。</li><li>如果以后 JND/质量评价场景里模型周围放了很多小控件，才需要认真调这个。</li></ul>
+<h3 id="section-10">3.3 <code>InteractorFarAttachMode</code></h3>
+<p>官方含义：控制远距离选中时，Interactor 默认如何调整自己的 attach transform。</p>
+<ul><li><code>Near</code>：把 attach transform 重置到近处点位。通常会导致物体被拉到手边。</li><li><code>Far</code>：把 attach transform 移动到远处命中点。通常会导致物体留在远处命中位置。</li></ul>
+<p>官方补充：某些 Interactable，例如实现了 <code>IFarAttachProvider</code> 接口的 <code>XR Grab Interactable</code>，可以覆盖 Interactor 的默认行为。它们默认会参考 Interactor 的偏好值，但也可以强制使用 <code>Near</code> 或 <code>Far</code>。</p>
+<p>更容易理解的注释：</p>
+<ul><li><code>Near</code> 更像“远处抓住后直接拉到手里”。</li><li><code>Far</code> 更像“远处点到它，但它还待在原地，只是被你远程操控”。</li><li>对当前点云实验项目，通常推荐 <code>Far</code>，因为我们更希望模型留在展示位置，而不是突然飞到用户脸前。</li></ul>
+<h2 id="section-11">4. 官方 Usage 部分中文翻译 + 注释</h2>
+<h3 id="section-12">官方原意翻译</h3>
+<p>这个组件应该挂载到一个在交互系统中充当 Interactor 的 GameObject 上。为了拥有完整功能，它需要：</p>
+<ul><li>一个实现 <code>IInteractionAttachController</code> 的组件</li><li>一个实现 <code>IInteractionCaster</code> 的近距离探测组件</li><li>一个实现 <code>ICurveInteractionCaster</code> 的远距离探测组件</li></ul>
+<p>如果 <code>Interaction Attach Controller</code>、<code>Near Caster</code> 或 <code>Far Caster</code> 的引用为空，运行时会自动添加这些接口的默认实现组件。</p>
+<h3 id="section-13">更容易理解的注释</h3>
+<ul><li>官方确实支持“如果你没配，它运行时帮你补默认组件”。</li><li>但对当前项目来说，不建议依赖这个自动补全行为。</li></ul>
+<p>原因很简单：</p>
+<ul><li>运行时自动补，编辑器里不直观。</li><li>你在 Inspector 里很难一眼看清“现在到底是谁在起作用”。</li><li>出问题时排查会更绕。</li></ul>
+<p>所以更推荐的做法是：</p>
+<blockquote>直接使用 Starter Assets 自带的 <code>Left_NearFarInteractor</code> / <code>Right_NearFarInteractor</code> 预制结构，或者显式把这些组件挂好并绑定引用。</blockquote>
+<h2 id="section-14">5. 相关组件补充说明</h2>
+<p>这一节不是逐字翻译，而是把与 <code>NearFarInteractor</code> 关系最紧密的几个官方组件，用更贴近项目的方式说明清楚。</p>
+<h3 id="section-15">5.1 <code>InteractionAttachController</code></h3>
+<p>官方原意翻译总结：</p>
+<ul><li>这是 <code>IInteractionAttachController</code> 的默认实现。</li><li>它和 <code>NearFarInteractor</code> 配合使用，用于处理远距离交互、已选中物体的稳定，以及把远处物体以加速方式拉向用户。</li><li>它还支持一种相对于 <code>XROrigin</code> 的平滑模式，可以让远距离抓取的物体在玩家移动时保持更稳定的运动表现。</li><li>默认配置下，平滑和稳定主要只影响“带偏移”的远距离抓取对象，从而保证回到近距离交互时，物体相对手或控制器的延迟尽量小。</li></ul>
+<p>更容易理解的注释：</p>
+<ul><li>如果把 <code>NearFarInteractor</code> 理解成“总指挥”，那 <code>InteractionAttachController</code> 就是“物体跟随规则的执行者”。</li><li>它决定了远距离选中后，物体是更稳、更平滑，还是更灵敏。</li><li>在点云实验里，如果模型远距离选中后抖动明显，或者拉近/推远的体验怪怪的，通常就该先检查这个组件。</li></ul>
+<p>几个最值得优先理解的参数：</p>
+<div class="table-wrap"><table><thead><tr><th>参数</th><th>更容易理解的注释</th></tr></thead><tbody><tr><td><code>Transform To Follow</code></td><td>附着点要跟随谁。通常是控制器或某个稳定锚点。</td></tr><tr><td><code>Motion Stabilization Mode</code></td><td>是否对附着点做稳定处理。稳定后会更“稳”，但也可能略微没那么“跟手”。</td></tr><tr><td><code>Smooth Offset</code></td><td>是否平滑远距离偏移。适合让远程抓物更自然。</td></tr><tr><td><code>Use Distance Based Velocity Scaling</code></td><td>距离越远，移动速度可以越快，避免远距离推拉太肉。</td></tr><tr><td><code>Use Manipulation Input</code></td><td>是否允许通过输入轴控制附着点。</td></tr><tr><td><code>Manipulation Input</code></td><td>具体是哪组输入轴在操控附着点。</td></tr><tr><td><code>Translate Speed</code></td><td>推拉速度。</td></tr><tr><td><code>Rotate Speed</code></td><td>旋转速度。</td></tr></tbody></table></div>
+<p>补充说明：</p>
+<blockquote>虽然 <code>near-far-interactor.md</code> 里写“NearFarInteractor 还不支持像 XRRayInteractor 那样用摇杆直接控制 attach transform”，但当前 <code>3.4.1</code> Starter Assets 里的实际方案，已经把这部分操控更多地下沉到了 <code>InteractionAttachController</code> 的 <code>Manipulation Input</code> 上。所以从工程实践看，仍然可以通过整套预制件配置实现远距离对象操控。</blockquote>
+<h3 id="section-16">5.2 <code>CurveInteractionCaster</code></h3>
+<p>更容易理解的注释：</p>
+<ul><li>这是远距离探测器。</li><li>它负责真正把“远程射线/曲线”打出去，看击中了什么。</li><li>它支持多种命中方式，例如 <code>Raycast</code>、<code>SphereCast</code>、<code>ConeCast</code>。</li><li>在 Starter Assets 里，它通常不只是“直直一条激光”，而是允许更柔和、更好看的交互曲线。</li></ul>
+<p>对当前项目的意义：</p>
+<ul><li>你要点首页按钮，它会参与。</li><li>你要远程选中点云模型，它也会参与。</li><li>所以它是“远距离交互命中逻辑”，不是“纯视觉线条”。</li></ul>
+<h3 id="section-17">5.3 <code>SphereInteractionCaster</code></h3>
+<p>更容易理解的注释：</p>
+<ul><li>这是近距离探测器。</li><li>它通常在手附近做球形检测，用来判断“现在有没有碰到附近可交互物体”。</li><li>如果你以后想支持“手靠近某个物体就能抓”，它就很重要。</li></ul>
+<h3 id="section-18">5.4 <code>CurveVisualController</code></h3>
+<p>官方原意翻译总结：</p>
+<ul><li>它是一个用于控制 <code>LineRenderer</code> 的可视化控制器。</li><li>它根据实现了 <code>ICurveInteractionDataProvider</code> 的数据源提供的信息，生成一条可视化曲线。</li><li>它可以根据当前命中状态、UI 状态、选中状态等，动态改变线的颜色、宽度、弯曲程度、材质等。</li></ul>
+<p>更容易理解的注释：</p>
+<ul><li>它只负责“把线画出来，并画得更聪明”。</li><li>它不负责真正的交互命中。</li><li>所以如果你看到线在，但点不到按钮，优先检查的是 <code>NearFarInteractor</code>、<code>CurveInteractionCaster</code>、Canvas 配置、输入动作，而不是先怪 <code>CurveVisualController</code>。</li></ul>
+<h2 id="section-19">6. XR UI 官方要求，和本项目最相关的部分</h2>
+<p>根据官方 <code>ui-setup.md</code> 和 <code>tracked-device-graphic-raycaster.md</code>，要让 XR 控制器和 Unity UI 正常交互，至少要满足下面这条链路：</p>
+<h3 id="section-20">6.1 Canvas 必须是 World Space</h3>
+<ul><li>XR Interaction Toolkit 只能与 <code>Render Mode = World Space</code> 的 Canvas 交互。</li><li>如果还是 <code>Screen Space - Overlay</code> 或 <code>Screen Space - Camera</code>，XR 射线通常不会按你预期工作。</li></ul>
+<h3 id="section-21">6.2 Canvas 上要有 <code>Tracked Device Graphic Raycaster</code></h3>
+<ul><li>这个组件要和 <code>Canvas</code> 挂在同一个 GameObject 上。</li><li>它的作用是让 3D 跟踪设备的射线可以高亮和点击 Canvas 上的 UI。</li></ul>
+<p>几个容易理解的参数：</p>
+<div class="table-wrap"><table><thead><tr><th>参数</th><th>更容易理解的注释</th></tr></thead><tbody><tr><td><code>Ignore Reversed Graphics</code></td><td>射线是否忽略背对自己的 UI 面。</td></tr><tr><td><code>Check for 2D Occlusion</code></td><td>2D 物体能不能挡住 UI 射线。</td></tr><tr><td><code>Check for 3D Occlusion</code></td><td>3D 物体能不能挡住 UI 射线。</td></tr><tr><td><code>Blocking Mask</code></td><td>哪些层的物体允许挡住 UI 射线。</td></tr><tr><td><code>Raycast Trigger Interaction</code></td><td>Trigger Collider 是否也算遮挡物。</td></tr></tbody></table></div>
+<p>性能提醒：</p>
+<ul><li>官方明确说明，<code>Check for 2D Occlusion</code> 和 <code>Check for 3D Occlusion</code> 默认关闭，是为了省性能。</li><li>每开一个，就会增加额外射线检测。</li></ul>
+<h3 id="section-22">6.3 场景里要有 <code>EventSystem + XRUIInputModule</code></h3>
+<ul><li>场景里只能有一个有效的 <code>EventSystem</code>。</li><li>同一时刻也只应该有一个启用中的 Input Module。</li><li>如果是 XR UI 交互，应使用 <code>XRUIInputModule</code> 这一套，而不是旧的 Standalone Input Module。</li></ul>
+<h3 id="section-23">6.4 <code>NearFarInteractor</code> 本身要启用 UI 交互</h3>
+<ul><li><code>Enable UI Interaction</code> 必须开启。</li><li><code>UI Press Input</code> 要正确绑定。</li><li>否则即使射线打到按钮上，看起来像对准了，也不会真正“点下去”。</li></ul>
+<h2 id="section-24">7. 在当前项目里应该怎么用</h2>
+<p>这一节不是官方原文，而是结合当前 VR 点云实验项目给出的落地建议。</p>
+<h3 id="section-25">7.1 首页场景 Home</h3>
+<p>目标：</p>
+<ul><li>用控制器射线点按钮</li><li>面板跟随视角</li><li>暂时不强调近距离抓物</li></ul>
+<p>建议：</p>
+<ul><li>保留 <code>NearFarInteractor</code></li><li><code>Enable UI Interaction = true</code></li><li><code>Enable Far Casting = true</code></li><li><code>Enable Near Casting</code> 可以先开着，也可以按需求关闭</li><li>Canvas 用 <code>World Space</code></li><li>Canvas 上挂 <code>TrackedDeviceGraphicRaycaster</code></li><li>场景里使用 <code>EventSystem + XRUIInputModule</code></li></ul>
+<p>一句人话总结：</p>
+<blockquote>首页主要把 <code>NearFarInteractor</code> 当成“XR UI 射线点击器”来用。</blockquote>
+<h3 id="section-26">7.2 质量评价场景 Quality Rating</h3>
+<p>目标：</p>
+<ul><li>远距离点 UI</li><li>远距离选中模型</li><li>对模型进行旋转、缩放、重置等操作</li></ul>
+<p>建议：</p>
+<ul><li><code>Enable Near Casting = true</code></li><li><code>Enable Far Casting = true</code></li><li><code>Far Attach Mode = Far</code></li><li>模型根对象有 Collider</li><li>模型根对象挂 <code>XRGrabInteractable</code> 或项目中自己的可交互逻辑</li><li>如果你希望模型留在展示位置，不要让它瞬间飞到手边</li></ul>
+<p>一句人话总结：</p>
+<blockquote>对质量评价场景，<code>Far</code> 模式通常比 <code>Near</code> 模式更符合实验展示逻辑。</blockquote>
+<h3 id="section-27">7.3 JND 场景</h3>
+<p>目标：</p>
+<ul><li>与质量评价场景类似，但更多偏向点选、对比、确认</li></ul>
+<p>建议：</p>
+<ul><li>大体沿用质量评价场景的配置思路</li><li>如果主要是比较和确认，而不是自由抓取模型，那么更应该优先保证 UI 点击和远距离稳定选中</li></ul>
+<h2 id="section-28">8. 最容易踩的坑</h2>
+<h3 id="section-29">8.1 把 XR 交互层和 Unity 物理层混为一谈</h3>
+<p>这是最常见的误区之一。</p>
+<ul><li><code>Interaction Layer Mask</code> 管的是“XR 交互逻辑允许不允许”</li><li><code>Physics Layer Mask / Raycast Mask</code> 管的是“物理射线能不能先打中 Collider”</li></ul>
+<p>所以会出现两种典型问题：</p>
+<ul><li>射线明明碰到 Collider 了，但选不中</li></ul>
+<p>原因通常是 XR 交互层不匹配</p>
+<ul><li>对象明明挂了 <code>XRGrabInteractable</code>，但射线像穿过去一样</li></ul>
+<p>原因通常是 Collider 层没有被 Caster 的物理 LayerMask 包含</p>
+<h3 id="section-30">8.2 只有线，没有交互</h3>
+<p>常见原因：</p>
+<ul><li><code>CurveVisualController</code> 在工作，但 <code>NearFarInteractor</code> 的输入没配好</li><li><code>Enable UI Interaction</code> 没开</li><li>Canvas 不是 <code>World Space</code></li><li><code>TrackedDeviceGraphicRaycaster</code> 没挂</li><li>场景里没有 <code>XRUIInputModule</code></li></ul>
+<h3 id="section-31">8.3 有 UI 交互，但 3D 模型点不到</h3>
+<p>常见原因：</p>
+<ul><li>模型没有 Collider</li><li>模型只有 Mesh，没有可命中的 Collider</li><li>模型根对象没有 <code>XRGrabInteractable</code></li><li><code>Interaction Layer Mask</code> 不匹配</li></ul>
+<h3 id="section-32">8.4 远距离抓取体验不对</h3>
+<p>常见现象：</p>
+<ul><li>物体突然飞到脸上</li><li>物体选中后抖动</li><li>旋转或推拉手感怪</li></ul>
+<p>优先检查：</p>
+<ul><li><code>Far Attach Mode</code></li><li><code>InteractionAttachController</code></li><li>模型刚体、碰撞体和附着点设置</li></ul>
+<h2 id="section-33">9. 推荐的理解顺序</h2>
+<p>如果你后面继续深入，建议按这个顺序理解：</p>
+<ol><li>先理解 <code>NearFarInteractor</code> 是“总控”</li><li>再理解 <code>CurveInteractionCaster</code> 和 <code>SphereInteractionCaster</code> 是“怎么探测目标”</li><li>再理解 <code>InteractionAttachController</code> 是“选中后怎么跟随和操控”</li><li>最后理解 <code>CurveVisualController</code> 是“怎么把射线画好看”</li></ol>
+<p>这样学习会比一上来盯着一大堆组件参数更轻松。</p>
+<h2 id="section-34">10. 一句话版结论</h2>
+<p><code>NearFarInteractor</code> 是 Unity 新版 XRI 里更推荐使用的统一交互器。<br>对当前项目来说，它最适合承担两件事：</p>
+<ul><li>用 XR 射线点击 World Space UI</li><li>用远近结合的方式选择并操控点云/模型对象</li></ul>
+<p>如果后面你继续沿这条路线做，建议始终围绕下面这套链路检查配置是否完整：</p>
+<p><code>NearFarInteractor -&gt; Caster -&gt; Interactable / UI -&gt; AttachController -&gt; VisualController</code></p>
+                <nav class="pager"><a class="pager-link" href="near-far-interactor-annotated-zh-split.html"><span>上一篇</span><strong>NearFarInteractor 官方文档中文注释版（拆分版）</strong></a><a class="pager-link" href="near-far-interactor-split-archive.html"><span>下一篇</span><strong>NearFarInteractor 拆分归档目录</strong></a></nav>
+            </article>
+
+            <aside class="panel toc-panel">
+                <div class="toc-title">目录导航</div>
+                <ol class="toc-list"><li class="toc-item toc-item--lvl-1"><a href="#section-1">NearFarInteractor 官方文档中文注释版</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-2">文档来源</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-3">1. NearFarInteractor 是什么</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-4">官方原意翻译</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-5">更容易理解的注释</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-6">2. 官方属性表中文翻译 + 注释</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-7">3. 官方枚举说明中文翻译 + 注释</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-8">3.1 `Region`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-9">3.2 `NearCasterSortingStrategy`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-10">3.3 `InteractorFarAttachMode`</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-11">4. 官方 Usage 部分中文翻译 + 注释</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-12">官方原意翻译</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-13">更容易理解的注释</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-14">5. 相关组件补充说明</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-15">5.1 `InteractionAttachController`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-16">5.2 `CurveInteractionCaster`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-17">5.3 `SphereInteractionCaster`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-18">5.4 `CurveVisualController`</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-19">6. XR UI 官方要求，和本项目最相关的部分</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-20">6.1 Canvas 必须是 World Space</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-21">6.2 Canvas 上要有 `Tracked Device Graphic Raycaster`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-22">6.3 场景里要有 `EventSystem + XRUIInputModule`</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-23">6.4 `NearFarInteractor` 本身要启用 UI 交互</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-24">7. 在当前项目里应该怎么用</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-25">7.1 首页场景 Home</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-26">7.2 质量评价场景 Quality Rating</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-27">7.3 JND 场景</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-28">8. 最容易踩的坑</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-29">8.1 把 XR 交互层和 Unity 物理层混为一谈</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-30">8.2 只有线，没有交互</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-31">8.3 有 UI 交互，但 3D 模型点不到</a></li><li class="toc-item toc-item--lvl-3"><a href="#section-32">8.4 远距离抓取体验不对</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-33">9. 推荐的理解顺序</a></li><li class="toc-item toc-item--lvl-2"><a href="#section-34">10. 一句话版结论</a></li></ol>
+            </aside>
+        </main>
+    </body>
+</html>
