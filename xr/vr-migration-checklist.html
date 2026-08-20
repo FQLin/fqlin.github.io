@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VR 项目不适用项迁移清单-范庆林的技术博客</title>
+    <meta name="description" content="旧版 VR 点云质量评价项目和参考桌面 3D 项目中，不适合直接迁移到 Unity 6000.4 + Oculus / XRI VR 项目的实现清单：桌面弹窗、Win32 文件选择、鼠标触摸输入、StandaloneFileBrowser 等。">
+    <meta name="keywords" content="VR 迁移,Unity 6000.4,Oculus,XRI,StandaloneFileBrowser,点云">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/xr/vr-migration-checklist.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="VR 项目不适用项迁移清单">
+    <meta property="og:description" content="旧版 VR 点云质量评价项目和参考桌面 3D 项目中，不适合直接迁移到 Unity 6000.4 + Oculus / XRI VR 项目的实现清单：桌面弹窗、Win32 文件选择、鼠标触摸输入、StandaloneFileBrowser 等。">
+    <meta property="og:url" content="https://fanqinglin.com/xr/vr-migration-checklist.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="VR 项目不适用项迁移清单">
+    <meta name="twitter:description" content="旧版 VR 点云质量评价项目和参考桌面 3D 项目中，不适合直接迁移到 Unity 6000.4 + Oculus / XRI VR 项目的实现清单：桌面弹窗、Win32 文件选择、鼠标触摸输入、StandaloneFileBrowser 等。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/xr/vr-migration-checklist.html",
+        "description": "旧版 VR 点云质量评价项目和参考桌面 3D 项目中，不适合直接迁移到 Unity 6000.4 + Oculus / XRI VR 项目的实现清单：桌面弹窗、Win32 文件选择、鼠标触摸输入、StandaloneFileBrowser 等。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#overall">总体判断</a><a href="#items">不适用项</a><a href="#order">解决顺序</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / XR 项目专题 / 迁移指南</div>
+                <span class="article-kicker">XR · 迁移</span>
+                <h1>VR 项目不适用项迁移清单</h1>
+                <p class="article-deck">从桌面 3D 项目 / 旧版 VR 项目迁到 Unity 6000.4 + XRI 时，必须替换的桌面实现：弹窗、文件选择、鼠标触摸、StandaloneFileBrowser 等。</p>
+                <div class="article-meta">
+                    <span>Unity 6000.4</span>
+                    <span>XRI 3.4.1</span>
+                    <span>2026-08-06 重写</span>
+                    <span>Oculus VR</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="overall">总体判断</h2>
+                <p>旧版 VR 项目虽然已带 XR Origin，但仍混有不少桌面端实现（Win32 文件选择框、鼠标触摸输入、手动多相机切换等）。参考项目 <code>AVersatilePointCloudProcessingPlatform</code> 代码结构更清晰，但本质是普通桌面 3D 项目，包含 Windows 桌面 API、<code>StandaloneFileBrowser</code>、外部进程调用、屏幕像素布局等。</p>
+                <p>迁移策略不是整段复制，而是：</p>
+                <ol>
+                    <li>保留实验业务逻辑：质量评价、JND 判断、点云读取、结果记录。</li>
+                    <li>替换桌面交互层：文件选择、弹窗、鼠标控制、窗口按钮。</li>
+                    <li>UI 与模型交互接到 VR 体系：World Space Canvas、<code>XRUIInputModule</code>、<code>TrackedDeviceGraphicRaycaster</code>、<code>NearFarInteractor</code>、Input Actions。</li>
+                </ol>
+
+                <h2 id="items">不适用项与解决方案</h2>
+
+                <h3>P0：必须先替换</h3>
+                <table>
+                    <thead><tr><th>不适用项</th><th>为什么不适合 VR</th><th>建议解决方案</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>Windows 原生文件/保存对话框（<code>Comdlg32.dll</code>、<code>LocalDialog.GetOpenFileName</code>、<code>StandaloneFileBrowser.OpenFilePanel</code> / <code>SaveFilePanel</code>）</td>
+                            <td>依赖 Windows 桌面窗口。Oculus 头显或 Android 平台无法使用，PCVR 也会打断沉浸感</td>
+                            <td>抽象 <code>IPathPicker</code>。当前保留世界空间输入框手动填写路径；下一阶段做 VR 内文件 / 目录选择面板；仅 PCVR 时可用 <code>#if UNITY_STANDALONE_WIN &amp;&amp; !UNITY_ANDROID</code> 临时实现</td>
+                        </tr>
+                        <tr>
+                            <td>Win32 <code>MessageBox</code> 与桌面退出确认（<code>Win32API.ConfirmMessageBox</code> + <code>Application.Quit(0)</code>）</td>
+                            <td>VR 中没有传统桌面弹窗；弹出系统窗口会脱离头显交互；强制退出不利于实验恢复</td>
+                            <td>做 World Space <code>AlertPanel</code> / <code>ConfirmPanel</code>，用 XR 射线点击按钮。退出逻辑优先改成"返回 Home 场景"或"结束实验并保存"</td>
+                        </tr>
+                        <tr>
+                            <td>鼠标、触摸、旧 Input 输入（<code>Input.GetMouseButtonDown</code>、<code>Input.mousePosition</code>、<code>Mouse ScrollWheel</code>、<code>Input.GetTouch</code>、<code>MouseTouchController</code>、<code>ModelViewerControl</code>）</td>
+                            <td>VR 主要输入来自头显、左右手柄、射线、抓取、扳机键和摇杆。鼠标/触摸逻辑不能代表 VR 操作</td>
+                            <td>用 XR Interaction Toolkit 的 Input Actions；交互器改 <code>NearFarInteractor</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>P1：尽快替换</h3>
+                <table>
+                    <thead><tr><th>不适用项</th><th>为什么不适合 VR</th><th>建议解决方案</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>路径策略：硬编码 <code>D:\...</code>、<code>f:\</code> 等 Windows 路径</td>
+                            <td>VR 项目要能部署到 Quest 等 Android 设备；路径策略必须可移植</td>
+                            <td>用 <code>Application.persistentDataPath</code> + <code>PathPicker</code> 抽象；配置文件 / 用户数据落到该路径下</td>
+                        </tr>
+                        <tr>
+                            <td>结果保存：直接写 <code>Application.dataPath</code> 或本地 <code>C:\</code></td>
+                            <td>Android 平台无写权限；实验数据丢失风险</td>
+                            <td>实验数据走 <code>Application.persistentDataPath</code>；如需导出，再走显式导出流程</td>
+                        </tr>
+                        <tr>
+                            <td>外部进程调用（<code>System.Diagnostics.Process</code> 启动 FFmpeg、点云工具）</td>
+                            <td>Quest / Android 不支持；进程管理与状态读取都不一致</td>
+                            <td>改用 Unity 内的等价实现（FFmpegNative、PointCloudNative）；必要时后台服务化</td>
+                        </tr>
+                        <tr>
+                            <td>模型加载：<code>File.ReadAllBytes</code> + 同步 IO</td>
+                            <td>大文件加载卡帧；Android 上更明显</td>
+                            <td>改 <code>UnityWebRequest</code> / <code>async/await</code> + 进度反馈</td>
+                        </tr>
+                        <tr>
+                            <td>VR 配置输入体验：<code>ConfigPanel</code> 等用 <code>Input.GetKey</code> 做快捷键</td>
+                            <td>VR 中无键盘；快捷键失效</td>
+                            <td>把"快捷键"换成"扳机 + 手柄按键组合"；或保留 PCVR 调试模式</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>P2：最后清理</h3>
+                <table>
+                    <thead><tr><th>不适用项</th><th>说明</th></tr></thead>
+                    <tbody>
+                        <tr><td>旧事件引用（<code>UnityAction</code>、<code>UnityEvent</code> 直接挂载旧 MonoBehaviour）</td><td>老项目习惯在新项目里要把这些迁移到 XRI 的 <code>UnityEvent</code> 钩子</td></tr>
+                        <tr><td>协程重构（<code>StartCoroutine</code> + <code>WaitForSeconds</code> 满天飞）</td><td>逐步换 <code>async/await</code> 或 UniTask；更易取消</td></tr>
+                        <tr><td>点云渲染性能：每个点 <code>GameObject</code></td><td>改 <code>Graphics.DrawMeshInstancedIndirect</code> / <code>ComputeShader</code></td></tr>
+                        <tr><td>实机舒适距离：模型离用户太近</td><td>检查最小可视距离 ≥ 0.5m；HUD 元素远离 IPD</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="order">建议解决顺序</h2>
+                <ol>
+                    <li><strong>P0：</strong>World Space UI、<code>XRUIInputModule</code>、Win32 弹窗替换、桌面文件选择替换、旧输入替换。</li>
+                    <li><strong>P1：</strong>路径策略、结果保存、外部进程剥离、模型加载策略、VR 配置输入体验。</li>
+                    <li><strong>P2：</strong>旧事件引用清理、协程重构、点云渲染性能、实机舒适距离。</li>
+                </ol>
+
+                <h2 id="next">下一步建议</h2>
+                <p>建议先做通用 VR 弹窗系统 <code>VRAlertPanel</code>，替代旧项目和参考项目的 <code>AlertManager</code>、<code>Win32API.MessageBox</code> 与 <code>Debug.Log</code> 提示。这个组件完成后，质量评价和 JND 两个场景的校验错误、路径为空、实验结束提示都可以统一接入。</p>
+                <p>第二步做路径选择策略：短期保留输入框和默认路径；中期加一个 VR 内部配置预设列表；长期再根据实际部署平台决定是否做完整 VR 文件浏览器。</p>
+
+                <h2 id="references">参考资料</h2>
+                <ul>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html" target="_blank" rel="noopener noreferrer">XR Interaction Toolkit 手册</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#ui-setup" target="_blank" rel="noopener noreferrer">XR UI Setup</a></li>
+                    <li><a href="https://docs.unity3d.com/Manual/com.unity.xr.management.html" target="_blank" rel="noopener noreferrer">XR Plugin Management</a></li>
+                </ul>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#overall">总体判断</a>
+            <a href="#items">不适用项</a>
+            <a href="#order">解决顺序</a>
+            <a href="#next">下一步建议</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

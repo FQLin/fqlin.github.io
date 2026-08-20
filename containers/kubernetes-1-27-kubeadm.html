@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>用 kubeadm 部署 Kubernetes 1.27 集群：从节点准备到 Flannel 网络-范庆林的技术博客</title>
+    <meta name="description" content="用 kubeadm 部署 Kubernetes 1.27 集群：节点规划、系统调优、容器运行时（containerd）、kubeadm init/join、Flannel/Calico 网络、kubectl 常用命令。">
+    <meta name="keywords" content="Kubernetes,kubeadm,1.27,Flannel,Calico,containerd,kubectl">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/containers/kubernetes-1-27-kubeadm.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="用 kubeadm 部署 Kubernetes 1.27 集群：从节点准备到 Flannel 网络">
+    <meta property="og:description" content="用 kubeadm 部署 Kubernetes 1.27 集群：节点规划、系统调优、容器运行时（containerd）、kubeadm init/join、Flannel/Calico 网络、kubectl 常用命令。">
+    <meta property="og:url" content="https://fanqinglin.com/containers/kubernetes-1-27-kubeadm.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="用 kubeadm 部署 Kubernetes 1.27 集群：从节点准备到 Flannel 网络">
+    <meta name="twitter:description" content="用 kubeadm 部署 Kubernetes 1.27 集群：节点规划、系统调优、容器运行时（containerd）、kubeadm init/join、Flannel/Calico 网络、kubectl 常用命令。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/containers/kubernetes-1-27-kubeadm.html",
+        "description": "用 kubeadm 部署 Kubernetes 1.27 集群：节点规划、系统调优、容器运行时（containerd）、kubeadm init/join、Flannel/Calico 网络、kubectl 常用命令。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#plan">节点规划</a><a href="#os">系统调优</a><a href="#containerd">容器运行时</a><a href="#kubeadm">kubeadm 安装</a><a href="#network">网络插件</a><a href="#verify">验证</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / 容器编排 / Kubernetes</div>
+                <span class="article-kicker">Container · Kubernetes</span>
+                <h1>用 kubeadm 部署 Kubernetes 1.27 集群：从节点准备到 Flannel 网络</h1>
+                <p class="article-deck">从一台空白的 Linux 机器开始，到一个能跑 Pod、能调度、Node 能加入的集群。</p>
+                <div class="article-meta">
+                    <span>Kubernetes 1.27</span>
+                    <span>kubeadm</span>
+                    <span>containerd</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="plan">节点规划</h2>
+                <p>一个最小可用的 K8s 集群至少需要 <strong>1 个 master + 1 个 worker</strong>，生产环境推荐至少 <strong>3 master + 2 worker</strong>。</p>
+                <pre><code>角色        主机名             IP                内存 / CPU 最低
+master     k8s-master01     192.168.66.10     2C / 2G
+worker     k8s-node01       192.168.66.20     1C / 1G
+worker     k8s-node02       192.168.66.21     1C / 1G</code></pre>
+                <p>所有节点：</p>
+                <ul>
+                    <li>Linux 内核 ≥ 5.4（Ubuntu 22.04 / Debian 12 / RHEL 9 任选）</li>
+                    <li>关闭 swap（K8s 要求）</li>
+                    <li>关闭防火墙（或者放通 6443、10250、8472 等关键端口）</li>
+                    <li>关闭 SELinux（RHEL 系）或设 permissive</li>
+                </ul>
+
+                <h2 id="os">系统调优（所有节点）</h2>
+                <p>主机名解析：</p>
+                <pre><code>hostnamectl set-hostname k8s-master01   # 每台机器不同
+
+cat &gt;&gt; /etc/hosts &lt;&lt;EOF
+192.168.66.10 k8s-master01
+192.168.66.20 k8s-node01
+192.168.66.21 k8s-node02
+EOF</code></pre>
+                <p>关 swap：</p>
+                <pre><code>swapoff -a
+sed -i '/ swap / s/^/#/' /etc/fstab</code></pre>
+                <p>内核参数：</p>
+                <pre><code>cat &gt; /etc/modules-load.d/k8s.conf &lt;&lt;EOF
+br_netfilter
+EOF
+modprobe br_netfilter
+
+cat &gt; /etc/sysctl.d/k8s.conf &lt;&lt;EOF
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+EOF
+sysctl --system</code></pre>
+                <div class="article-warning"><strong>原 Memo 中的 <code>tcp_tw_recycle</code> 在新内核已废弃，移除掉。</strong>同理，K8s 1.24+ 已经移除 dockershim，下面用 containerd。</div>
+
+                <h2 id="containerd">容器运行时：containerd</h2>
+                <p>安装 containerd（K8s 1.27 推荐）：</p>
+                <pre><code>apt update
+apt install -y containerd
+
+mkdir -p /etc/containerd
+containerd config default &gt; /etc/containerd/config.toml
+
+# 改 cgroup driver 与 systemd 一致
+sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+
+systemctl restart containerd
+systemctl enable containerd</code></pre>
+
+                <h2 id="kubeadm">安装 kubeadm / kubelet / kubectl</h2>
+                <p>用阿里云镜像源（国内可达）：</p>
+                <pre><code>apt update &amp;&amp; apt install -y apt-transport-https ca-certificates curl
+
+curl -fsSL https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main' \
+  &gt; /etc/apt/sources.list.d/kubernetes.list
+
+apt update
+apt install -y kubelet=1.27.10-1.1 kubeadm=1.27.10-1.1 kubectl=1.27.10-1.1
+apt-mark hold kubelet kubeadm kubectl
+
+systemctl enable kubelet</code></pre>
+
+                <h3>master 节点初始化</h3>
+                <pre><code>kubeadm init \
+  --kubernetes-version=1.27.10 \
+  --apiserver-advertise-address=192.168.66.10 \
+  --image-repository registry.aliyuncs.com/google_containers \
+  --service-cidr=10.96.0.0/12 \
+  --pod-network-cidr=10.244.0.0/16 \
+  --cri-socket=unix:///run/containerd/containerd.sock</code></pre>
+                <p>几个参数含义：</p>
+                <ul>
+                    <li><code>apiserver-advertise-address</code>：master 自己的 IP</li>
+                    <li><code>image-repository</code>：拉镜像的源（国内改阿里云避免 GFW）</li>
+                    <li><code>service-cidr</code>：Service IP 段</li>
+                    <li><code>pod-network-cidr</code>：Pod IP 段，要与下面 Flannel 的网段一致</li>
+                </ul>
+                <p>初始化完成后按提示配置 kubectl：</p>
+                <pre><code>mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config</code></pre>
+
+                <h3>worker 加入集群</h3>
+                <p>master 上生成 join 命令（24 小时内有效）：</p>
+                <pre><code>kubeadm token create --print-join-command</code></pre>
+                <p>worker 节点上运行打印出的命令，类似：</p>
+                <pre><code>kubeadm join 192.168.66.10:6443 --token &lt;TOKEN&gt; \
+  --discovery-token-ca-cert-hash sha256:&lt;HASH&gt;</code></pre>
+
+                <h2 id="network">网络插件：Flannel</h2>
+                <p>Flannel 简单稳定，适合学习环境。Calico 功能更强（NetworkPolicy），生产推荐。</p>
+                <pre><code>kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml</code></pre>
+                <p>检查：</p>
+                <pre><code>kubectl get pods -n kube-flannel
+# NAME                    READY   STATUS    RESTARTS   AGE
+# kube-flannel-ds-xxx     1/1     Running   0          30s
+# kube-flannel-ds-yyy     1/1     Running   0          30s
+# kube-flannel-ds-zzz     1/1     Running   0          30s</code></pre>
+
+                <h2 id="verify">验证</h2>
+                <pre><code>kubectl get nodes
+# NAME            STATUS   ROLES           AGE   VERSION
+# k8s-master01    Ready    control-plane   5m    v1.27.10
+# k8s-node01      Ready    &lt;none&gt;          2m    v1.27.10
+# k8s-node02      Ready    &lt;none&gt;          2m    v1.27.10
+
+# 起一个 nginx 测试
+kubectl create deploy nginx --image=nginx:1.25 --replicas=3
+kubectl expose deploy nginx --port=80 --target-port=80 --type=NodePort
+kubectl get pods -o wide
+kubectl get svc nginx</code></pre>
+                <p>如果 Pod 都 <code>Running</code>，集群就绪。</p>
+
+                <h2 id="commands">kubectl 速记</h2>
+                <pre><code>kubectl get pods -A                           # 所有命名空间
+kubectl describe pod &lt;name&gt; -n &lt;ns&gt;            # 排错
+kubectl logs &lt;pod&gt; -f                         # 看日志
+kubectl exec -it &lt;pod&gt; -- bash                # 进容器
+kubectl scale deploy &lt;name&gt; --replicas=5     # 扩缩
+kubectl set image deploy/&lt;name&gt; &lt;ctr&gt;=&lt;img&gt;  # 滚动更新
+kubectl rollout undo deploy/&lt;name&gt;            # 回滚
+kubectl delete all -l app=&lt;label&gt;             # 按 label 删除</code></pre>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>生产环境 kubeadm init 时给 <code>--control-plane-endpoint</code>，便于 master HA。</li>
+                    <li>不要跳过 <code>--cri-socket</code>，kubeadm 1.27 默认会试 dockershim。</li>
+                    <li>镜像源国内一定要换阿里云，否则 kubeadm init 卡住。</li>
+                    <li>worker 加入前先在 master 端确认 token 没过期。</li>
+                    <li>升级前看 <a href="https://kubernetes.io/releases/version-skew-policy/" target="_blank" rel="noopener noreferrer">Kubernetes 升级偏差策略</a>。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/" target="_blank" rel="noopener noreferrer">kubeadm 官方文档</a></li>
+                        <li><a href="https://kubernetes.io/docs/setup/production-environment/container-runtimes/" target="_blank" rel="noopener noreferrer">容器运行时配置</a></li>
+                        <li><a href="https://github.com/flannel-io/flannel" target="_blank" rel="noopener noreferrer">Flannel</a></li>
+                        <li><a href="https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/" target="_blank" rel="noopener noreferrer">kubectl 多集群配置</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#plan">节点规划</a>
+            <a href="#os">系统调优</a>
+            <a href="#containerd">容器运行时</a>
+            <a href="#kubeadm">kubeadm</a>
+            <a href="#network">网络插件</a>
+            <a href="#verify">验证</a>
+            <a href="#commands">kubectl 速记</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

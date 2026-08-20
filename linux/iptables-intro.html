@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>iptables 入门：规则、链表与五大实战场景-范庆林的技术博客</title>
+    <meta name="description" content="从零开始理解 iptables：表与链的概念、五大实战场景（基本查询、屏蔽地址、规则导入、黑/白名单、端口映射），以及 nftables 的替代关系。">
+    <meta name="keywords" content="iptables,Linux,防火墙,网络规则,NAT,表链,nftables">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/linux/iptables-intro.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="iptables 入门：规则、链表与五大实战场景">
+    <meta property="og:description" content="从零开始理解 iptables：表与链的概念、五大实战场景（基本查询、屏蔽地址、规则导入、黑/白名单、端口映射），以及 nftables 的替代关系。">
+    <meta property="og:url" content="https://fanqinglin.com/linux/iptables-intro.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="iptables 入门：规则、链表与五大实战场景">
+    <meta name="twitter:description" content="从零开始理解 iptables：表与链的概念、五大实战场景（基本查询、屏蔽地址、规则导入、黑/白名单、端口映射），以及 nftables 的替代关系。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/linux/iptables-intro.html",
+        "description": "从零开始理解 iptables：表与链的概念、五大实战场景（基本查询、屏蔽地址、规则导入、黑/白名单、端口映射），以及 nftables 的替代关系。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#concept">基本概念</a><a href="#commands">基本命令</a><a href="#scenes">五个实战场景</a><a href="#nft">与 nftables 的关系</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / Linux 与运维 / 网络</div>
+                <span class="article-kicker">Linux · Networking</span>
+                <h1>iptables 入门：规则、链表与五大实战场景</h1>
+                <p class="article-deck">不背参数，直接从「我要做什么」出发；五类高频场景对应五条最小可用命令链。</p>
+                <div class="article-meta">
+                    <span>iptables / nftables</span>
+                    <span>2026-08-06 发布</span>
+                    <span>Linux</span>
+                    <span>防火墙</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="concept">一句话理解 iptables</h2>
+                <p><strong>iptables 是 Linux 内核 netfilter 的用户态客户端。</strong>内核真正干活的叫 netfilter，iptables 只是写规则、改规则、查规则的命令行工具。</p>
+                <p>iptables 规则的组织方式：</p>
+                <ul>
+                    <li><strong>表（table）</strong>：按用途分组，常见两张表：
+                        <ul>
+                            <li><code>filter</code>：默认表，存放防火墙规则（接受/丢弃/拒绝）</li>
+                            <li><code>nat</code>：网络地址转换、端口转发</li>
+                        </ul>
+                    </li>
+                    <li><strong>链（chain）</strong>：表里的检查点，决定规则何时生效：
+                        <ul>
+                            <li><code>INPUT</code>：进入本机的数据包</li>
+                            <li><code>OUTPUT</code>：本机发出的数据包</li>
+                            <li><code>FORWARD</code>：本机转发的数据包（多网卡/网关场景）</li>
+                            <li><code>PREROUTING</code>：路由前（DNAT 经常用）</li>
+                            <li><code>POSTROUTING</code>：路由后（SNAT/MASQUERADE 经常用）</li>
+                        </ul>
+                    </li>
+                    <li><strong>规则（rule）</strong>：链里的一条匹配 + 动作，从上到下依次匹配，命中即执行；都没命中走链的默认策略。</li>
+                </ul>
+
+                <h2 id="commands">基本命令</h2>
+                <p>查帮助：</p>
+                <pre><code>iptables -h &gt; ~/iptables_help    # 把帮助信息存到文本，方便搜索</code></pre>
+                <p>查看规则：</p>
+                <pre><code># 查看 filter 表（默认）
+iptables -L -n
+
+# 查看 nat 表
+iptables -L -n -t nat</code></pre>
+                <p>三参数含义：<code>-L</code> 列出规则；<code>-n</code> 不做 DNS 反查，直接显示 IP；<code>-t 表名</code> 指定表。</p>
+
+                <h2 id="scenes">五个实战场景</h2>
+
+                <h3 id="scene-block">场景 1：禁止本机 ping 某个地址</h3>
+                <p>需求：本机不允许 ping 百度。先 ping 一下确认能通：</p>
+                <pre><code>ping -c 4 www.baidu.com</code></pre>
+                <p>然后插一条 OUTPUT 链规则：</p>
+                <pre><code>iptables -I OUTPUT -p icmp -d www.baidu.com -j DROP</code></pre>
+                <p>参数含义：</p>
+                <ul>
+                    <li><code>-I OUTPUT</code>：插入到 OUTPUT 链<strong>最前面</strong>（<code>-A</code> 是追加末尾，<code>-I</code> 是插入开头）</li>
+                    <li><code>-p icmp</code>：匹配协议</li>
+                    <li><code>-d</code>：匹配目的地址（域名会先解析成 IP）</li>
+                    <li><code>-j DROP</code>：动作为悄悄丢弃</li>
+                </ul>
+                <p>再次 ping：</p>
+                <pre><code>ping -c 4 www.baidu.com
+# ping: sendmsg: Operation not permitted</code></pre>
+                <div class="article-warning"><strong>顺序很重要。</strong>规则是从上到下依次匹配的：拒绝规则放最后面、允许规则放它前面；不然所有包进来第一行就被拒，业务直接全断。</div>
+
+                <h3 id="scene-export">场景 2：导出 / 编辑 / 导入规则</h3>
+                <p>复杂规则不要直接命令行改——一个 typo 就可能锁死自己。最佳实践：先导出现有规则到文件，编辑文本，再重新导入。</p>
+                <p>导出：</p>
+                <pre><code>iptables-save &gt; /home/ubuntu/iptables_rules</code></pre>
+                <p>编辑：<code>iptables_rules</code> 是普通文本，每行一条规则。常见操作是在某条链下面加 <code>-A</code> 行：</p>
+                <pre><code>*filter
+:INPUT ACCEPT
+:FORWARD ACCEPT
+:OUTPUT ACCEPT
+-A OUTPUT -p icmp -d 114.114.114.114 -j DROP   # 新增：禁止 ping 114 DNS
+COMMIT</code></pre>
+                <p>导入：</p>
+                <pre><code>iptables-restore &lt; /home/ubuntu/iptables_rules
+iptables -L -n                                # 校验规则是否生效</code></pre>
+                <div class="article-note">清空所有规则（核弹级操作，仅在能进 console 时使用）：<code>iptables -F</code>。清自定义链用 <code>-X</code>，重置计数器用 <code>-Z</code>。</div>
+
+                <h3 id="scene-blacklist">场景 3：黑/白名单（按源 IP 限制）</h3>
+                <p>需求：让本机作为网关时，特定 PC（按 IP 识别）不能访问某些网站，其他设备不受限。</p>
+                <p>思路：建一条名为 <code>BLACKLIST</code> 的自定义链，里面放要屏蔽的目的地址；然后让"特定 PC 的出流量"跳进这条链。</p>
+                <pre><code># 清环境
+iptables -F
+iptables -X
+
+# 建一条自定义链
+iptables -N BLACKLIST
+
+# 源 IP 是 10.135.166.86（本机）时跳进 BLACKLIST
+iptables -A OUTPUT -s 10.135.166.86 -j BLACKLIST
+
+# BLACKLIST 里加具体屏蔽的目标
+iptables -A BLACKLIST -d 114.114.114.114    -j DROP
+iptables -A BLACKLIST -d 220.181.111.188    -j DROP</code></pre>
+                <p>扩展示例（限制另一台 PC 通过本机转发）：再加一条 <code>-A OUTPUT -s &lt;另一台 IP&gt; -j BLACKLIST</code>。要新增屏蔽目标，只需往 BLACKLIST 链追加。</p>
+
+                <h3 id="scene-port">场景 4：端口映射 / 转发</h3>
+                <p>需求：把访问 8080 的请求转到 80 端口。本地实例：</p>
+                <pre><code># 本地 8080 → 80
+iptables -t nat -A OUTPUT -p tcp -d 127.0.0.1 --dport 8080 -j DNAT --to 127.0.0.1:80</code></pre>
+                <p>外网 8080 → 本机 80（走 PREROUTING，更常见）：</p>
+                <pre><code>iptables -t nat -A PREROUTING -p tcp --dport 8080 -j REDIRECT --to-ports 80</code></pre>
+                <p>两个动作区别：</p>
+                <ul>
+                    <li><code>DNAT</code>：目标地址改写。可以转到另一台机器的另一个端口。</li>
+                    <li><code>REDIRECT</code>：把包转到本机的另一个端口（本质是 DNAT 的本地特化）。</li>
+                </ul>
+                <div class="article-warning"><strong>能改应用就别用 iptables。</strong>端口转发是「实在没办法」时的兜底——优先让应用直接监听目标端口，或在前面架 Nginx/HAProxy。</div>
+
+                <h3 id="scene-emergency">场景 5：把自己锁在外面了怎么办</h3>
+                <p>加了规则后 SSH 连不上（最常见的翻车）：</p>
+                <ul>
+                    <li>云厂商控制台：登录 VNC / serial console，执行 <code>iptables -F</code>。</li>
+                    <li>物理机：用本地显示器或 IPMI。</li>
+                    <li>容器/VM：宿主机上 <code>docker exec</code> 或虚拟化层 shell。</li>
+                </ul>
+                <p>防患于未然的两条规矩：</p>
+                <ol>
+                    <li>改规则前先 <code>iptables-save</code> 备份，保留 5–10 分钟再 <code>iptables-restore</code> 兜底。</li>
+                    <li>在 cron 里挂一条 10 分钟后自动恢复的"安全网"规则：</li>
+                </ol>
+                <pre><code>at now + 10 minutes &lt;&lt; 'EOF'
+iptables-restore &lt; /root/iptables.bak
+EOF</code></pre>
+
+                <h2 id="nft">与 nftables 的关系</h2>
+                <p>CentOS 7 / Debian 10 之前的发行版默认是 iptables；从 CentOS 8 / Debian 10 / Ubuntu 20.04 起，新装系统默认是 <strong>nftables</strong>，iptables 在很多发行版里已经是 <code>iptables-nft</code> 的兼容层。</p>
+                <p>判断当前用的是哪一套：</p>
+                <pre><code>iptables --version
+# iptables v1.8.7 (nf_tables)   ← 说明走 nftables 后端
+# iptables v1.8.7 (legacy)      ← 说明还走旧 xtables</code></pre>
+                <p>迁移建议：</p>
+                <ul>
+                    <li>新项目直接写 nftables 规则（语法更清晰、支持集合与字典、性能更好）。</li>
+                    <li>老项目先保留 iptables 兼容层，迁移时用 <code>nft list-ruleset</code> 导出后逐条转写。</li>
+                </ul>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>永远先 <code>iptables-save</code> 备份，再改。</li>
+                    <li>复杂规则用脚本 / 配置管理（Ansible、systemd unit）部署，不要手敲。</li>
+                    <li>任何 <code>-F</code> / <code>-I INPUT -j DROP</code> 前先想清楚一条"逃生路径"。</li>
+                    <li>新机器直接用 nftables，iptables 当兼容层理解即可。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://netfilter.org/documentation/" target="_blank" rel="noopener noreferrer">netfilter / iptables 官方文档</a></li>
+                        <li><a href="https://wiki.nftables.org/wiki-nftables/index.php/Main_Page" target="_blank" rel="noopener noreferrer">nftables Wiki</a></li>
+                        <li><a href="https://man7.org/linux/man-pages/man8/iptables.8.html" target="_blank" rel="noopener noreferrer">man iptables(8)</a></li>
+                        <li><a href="https://man7.org/linux/man-pages/man8/iptables-save.8.html" target="_blank" rel="noopener noreferrer">man iptables-save(8) / iptables-restore(8)</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#concept">基本概念</a>
+            <a href="#commands">基本命令</a>
+            <a href="#scenes">五个实战场景</a>
+            <a href="#scene-block">屏蔽地址</a>
+            <a href="#scene-export">规则导入导出</a>
+            <a href="#scene-blacklist">黑/白名单</a>
+            <a href="#scene-port">端口映射</a>
+            <a href="#scene-emergency">被锁自救</a>
+            <a href="#nft">与 nftables</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

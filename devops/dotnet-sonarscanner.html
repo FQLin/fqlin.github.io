@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>.NET 项目接入 SonarScanner：begin / build / end 三步上手-范庆林的技术博客</title>
+    <meta name="description" content="把 .NET 项目接入 SonarQube：从装 dotnet-sonarscanner，到 begin/build/end 三步分析，再到测试覆盖率、排除规则与 CI 集成。">
+    <meta name="keywords" content="SonarScanner,SonarQube,.NET,代码质量,覆盖率,CI,代码扫描">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/devops/dotnet-sonarscanner.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content=".NET 项目接入 SonarScanner：begin / build / end 三步上手">
+    <meta property="og:description" content="把 .NET 项目接入 SonarQube：从装 dotnet-sonarscanner，到 begin/build/end 三步分析，再到测试覆盖率、排除规则与 CI 集成。">
+    <meta property="og:url" content="https://fanqinglin.com/devops/dotnet-sonarscanner.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content=".NET 项目接入 SonarScanner：begin / build / end 三步上手">
+    <meta name="twitter:description" content="把 .NET 项目接入 SonarQube：从装 dotnet-sonarscanner，到 begin/build/end 三步分析，再到测试覆盖率、排除规则与 CI 集成。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/devops/dotnet-sonarscanner.html",
+        "description": "把 .NET 项目接入 SonarQube：从装 dotnet-sonarscanner，到 begin/build/end 三步分析，再到测试覆盖率、排除规则与 CI 集成。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#install">安装</a><a href="#analyze">三步分析</a><a href="#coverage">覆盖率</a><a href="#exclude">排除</a><a href="#ci">CI 集成</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / DevOps / SonarQube</div>
+                <span class="article-kicker">DevOps · Code Quality</span>
+                <h1>.NET 项目接入 SonarScanner：begin / build / end 三步上手</h1>
+                <p class="article-deck">给 .NET 项目接 SonarQube 静态分析的最小流程，加上覆盖率、排除规则与 CI 集成。</p>
+                <div class="article-meta">
+                    <span>SonarQube</span>
+                    <span>dotnet-sonarscanner</span>
+                    <span>.NET 6+</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="install">安装 scanner</h2>
+                <p>用 .NET global tool：</p>
+                <pre><code>dotnet tool install --global dotnet-sonarscanner --version 10.4.0</code></pre>
+                <p>验证：</p>
+                <pre><code>dotnet sonarscanner --version</code></pre>
+                <div class="article-warning">scanner 版本应与 SonarQube Server 兼容；SonarQube 10.x 推荐 scanner 9+；SonarQube 9.x 用 scanner 5+。</div>
+
+                <h2 id="analyze">三步分析：begin / build / end</h2>
+                <p>三个命令把扫描嵌进 build 流程：</p>
+                <pre><code># 1. begin：准备分析环境，告诉 SonarQube "我要扫这个项目"
+dotnet sonarscanner begin \
+  /k:"my-dotnet-app" \
+  /d:sonar.host.url="https://sonar.example.com" \
+  /d:sonar.token="&lt;REPLACE_WITH_USER_TOKEN&gt;"
+
+# 2. build：正常编译 / 测试
+dotnet build -c Release
+dotnet test  -c Release --no-build
+
+# 3. end：收尾，上传报告
+dotnet sonarscanner end /d:sonar.token="&lt;REPLACE_WITH_USER_TOKEN&gt;"</code></pre>
+                <p>三个参数含义：</p>
+                <ul>
+                    <li><code>/k:"project-key"</code>：SonarQube 中项目的唯一标识</li>
+                    <li><code>sonar.host.url</code>：SonarQube Server 地址</li>
+                    <li><code>sonar.token</code>：用户的 token（在 SonarQube 个人安全页面生成）</li>
+                </ul>
+                <div class="article-warning"><strong>token 不要写死在 CI 脚本里。</strong>用 CI 的凭据存储（GitHub Actions Secrets / GitLab CI Variables / Jenkins Credentials）。</div>
+
+                <h3>全局配置（可选）</h3>
+                <p>如果不想每次都指定 host/token，可以建一份 <code>SonarQube.Analysis.xml</code>：</p>
+                <pre><code>&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;SonarQubeAnalysisProperties xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                             xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                             xmlns="http://www.sonarsource.com/msbuild/integration/2015/1"&gt;
+  &lt;Property Name="sonar.host.url"&gt;https://sonar.example.com&lt;/Property&gt;
+  &lt;Property Name="sonar.token"&gt;&lt;REPLACE_WITH_USER_TOKEN&gt;&lt;/Property&gt;
+&lt;/SonarQubeAnalysisProperties&gt;</code></pre>
+                <p>把文件放在 <code>%LOCALAPPDATA%\SonarQube\SonarQube.Analysis.xml</code>（Windows）或 <code>~/.sonar/SonarQube.Analysis.xml</code>（Linux），scanner 会自动读。</p>
+
+                <h2 id="coverage">覆盖率</h2>
+                <p>用 coverlet 跑测试时同时生成 OpenCover 报告，scanner 自动收：</p>
+                <pre><code>dotnet test -c Release \
+  /p:CollectCoverage=true \
+  /p:CoverletOutputFormat=opencover \
+  /p:CoverletOutput=./TestResults/ \
+  --logger "trx;LogFileName=test.trx"</code></pre>
+                <p>测试结果（<code>trx</code>）与覆盖率（<code>opencover.xml</code>）会随 <code>dotnet sonarscanner end</code> 一同上传。</p>
+                <p>Web 端即可看到行 / 分支 / 测试覆盖率的细分。</p>
+
+                <h2 id="exclude">排除规则</h2>
+
+                <h3>代码层排除</h3>
+                <pre><code>// .csproj
+&lt;PropertyGroup&gt;
+    &lt;SonarQubeExclude&gt;true&lt;/SonarQubeExclude&gt;
+&lt;/PropertyGroup&gt;</code></pre>
+
+                <h3>全局规则</h3>
+                <p>推荐放 <code>sonar-project.properties</code> 与项目根目录：</p>
+                <pre><code># sonar-project.properties
+sonar.exclusions=**/Migrations/**,**/bin/**,**/obj/**
+sonar.coverage.exclusions=**/Migrations/**,**/Program.cs
+sonar.cpd.exclusions=**/Generated/**</code></pre>
+                <ul>
+                    <li><code>sonar.exclusions</code>：不分析</li>
+                    <li><code>sonar.coverage.exclusions</code>：不算覆盖率（仍在分析）</li>
+                    <li><code>sonar.cpd.exclusions</code>：不参与重复代码检测</li>
+                </ul>
+
+                <h3>自定义规则参数</h3>
+                <p>在 <code>.csproj</code> 里给某个项目写特定参数：</p>
+                <pre><code>&lt;ItemGroup&gt;
+  &lt;SonarQubeSetting Include="sonar.stylecop.projectFilePath"&gt;
+    &lt;Value&gt;$(MSBuildProjectFullPath)&lt;/Value&gt;
+  &lt;/SonarQubeSetting&gt;
+&lt;/ItemGroup&gt;</code></pre>
+
+                <h2 id="ci">CI 集成示例</h2>
+
+                <h3>GitHub Actions</h3>
+                <pre><code>jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+
+      - name: Install scanner
+        run: dotnet tool install --global dotnet-sonarscanner --version 10.4.0
+
+      - name: Begin
+        run: |
+          dotnet sonarscanner begin \
+            /k:"my-dotnet-app" \
+            /d:sonar.host.url="${{ secrets.SONAR_HOST }}" \
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+      - name: Build &amp; Test
+        run: |
+          dotnet build -c Release
+          dotnet test -c Release --no-build \
+            /p:CollectCoverage=true \
+            /p:CoverletOutputFormat=opencover \
+            /p:CoverletOutput=./TestResults/
+
+      - name: End
+        run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"</code></pre>
+
+                <h3>Jenkinsfile</h3>
+                <pre><code>stage('SonarQube Analysis') {
+    steps {
+        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+            sh """
+              dotnet sonarscanner begin /k:'my-dotnet-app' \
+                /d:sonar.host.url='${SONAR_HOST}' \
+                /d:sonar.token='${SONAR_TOKEN}'
+              dotnet build -c Release
+              dotnet test -c Release --no-build \
+                /p:CollectCoverage=true \
+                /p:CoverletOutputFormat=opencover \
+                /p:CoverletOutput=./TestResults/
+              dotnet sonarscanner end /d:sonar.token='${SONAR_TOKEN}'
+            """
+        }
+    }
+}</code></pre>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>Token 必须走 CI 凭据存储，禁止写进代码库。</li>
+                    <li>迁移生成代码（<code>**/Migrations/**</code>、<code>**/obj/**</code>）加入排除列表。</li>
+                    <li>覆盖率 <strong>≠ 质量</strong>：90% 覆盖也能写出大量"测了空方法"的测试，SonarQube 的真正价值在静态规则。</li>
+                    <li>质量门禁（Quality Gate）建议先放宽（覆盖率 60%+），逐步抬高，避免一刀切打击团队积极性。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://docs.sonarsource.com/sonarqube/latest/analyzing-source-code/scanners/sonarscanner-for-dotnet/" target="_blank" rel="noopener noreferrer">SonarScanner for .NET 官方文档</a></li>
+                        <li><a href="https://docs.sonarsource.com/sonarqube/latest/analyzing-source-code/test-coverage/dotnet-test-coverage/" target="_blank" rel="noopener noreferrer">.NET Test Coverage</a></li>
+                        <li><a href="https://github.com/SonarSource/sonar-scanner-msbuild/wiki/Analysis-of-product-projects-vs.-test-projects" target="_blank" rel="noopener noreferrer">产品项目与测试项目区分</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#install">安装</a>
+            <a href="#analyze">三步分析</a>
+            <a href="#coverage">覆盖率</a>
+            <a href="#exclude">排除</a>
+            <a href="#ci">CI 集成</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

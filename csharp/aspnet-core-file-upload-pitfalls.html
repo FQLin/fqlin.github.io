@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ASP.NET Core 文件上传三个常见坑：IFormFile 绑定 / 多文件同名 / 大小限制-范庆林的技术博客</title>
+    <meta name="description" content="ASP.NET Core 文件上传的三个常见坑：IFormFile 数组在 VM 子类不绑定、同名多文件未选中的项不会为 null、上传大小限制与 RequestSizeLimit。">
+    <meta name="keywords" content="ASP.NET Core,文件上传,IFormFile,RequestSizeLimit,FormOptions">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/csharp/aspnet-core-file-upload-pitfalls.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="ASP.NET Core 文件上传三个常见坑：IFormFile 绑定 / 多文件同名 / 大小限制">
+    <meta property="og:description" content="ASP.NET Core 文件上传的三个常见坑：IFormFile 数组在 VM 子类不绑定、同名多文件未选中的项不会为 null、上传大小限制与 RequestSizeLimit。">
+    <meta property="og:url" content="https://fanqinglin.com/csharp/aspnet-core-file-upload-pitfalls.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="ASP.NET Core 文件上传三个常见坑：IFormFile 绑定 / 多文件同名 / 大小限制">
+    <meta name="twitter:description" content="ASP.NET Core 文件上传的三个常见坑：IFormFile 数组在 VM 子类不绑定、同名多文件未选中的项不会为 null、上传大小限制与 RequestSizeLimit。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/csharp/aspnet-core-file-upload-pitfalls.html",
+        "description": "ASP.NET Core 文件上传的三个常见坑：IFormFile 数组在 VM 子类不绑定、同名多文件未选中的项不会为 null、上传大小限制与 RequestSizeLimit。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#viewmodel">ViewModel 数组不绑定</a><a href="#same-name">同名多文件</a><a href="#limit">大小限制</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / C# / .NET / ASP.NET Core</div>
+                <span class="article-kicker">ASP.NET Core · File Upload</span>
+                <h1>ASP.NET Core 文件上传三个常见坑：IFormFile 绑定 / 多文件同名 / 大小限制</h1>
+                <p class="article-deck">三个真实出现过的问题和现代写法；不再依赖 .NET Framework 时代的 web.config。</p>
+                <div class="article-meta">
+                    <span>ASP.NET Core 6+</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="viewmodel">坑 1：ViewModel 里嵌套的 <code>IFormFile</code> 数组不绑定</h2>
+                <p>页面用一个列表来收集每行的附件，前端 <code>name="Items[i].File"</code> 命名，后端期望模型绑定到 <code>List&lt;RowVm&gt;</code>：</p>
+                <pre><code>public class RowVm
+{
+    public string Title { get; set; }
+    public IFormFile File { get; set; }   // ❌ 不会被默认绑定
+}
+
+public class FormVm
+{
+    public List&lt;RowVm&gt; Items { get; set; }
+}</code></pre>
+                <p>实际收到的 <code>Items[i].File</code> 始终为 <code>null</code>。原因：模型绑定器默认<strong>只认顶层</strong>的 <code>IFormFile</code>，嵌套对象里的不会自动映射。</p>
+                <p>解决方案有两个：</p>
+                <ol>
+                    <li>在 Action 上单独接收 <code>IFormFileCollection</code>，再按 <code>name</code> 自行匹配；</li>
+                    <li>写一个自定义 <code>IModelBinder</code> 显式解析嵌套文件（适合复杂场景）。</li>
+                </ol>
+                <p>最常用的就是方案 1：</p>
+                <pre><code>[HttpPost]
+public async Task&lt;IActionResult&gt; Upload(
+    [FromForm] FormVm vm,
+    IFormFileCollection files,
+    CancellationToken ct)
+{
+    // 按 input 顺序 / name 自行匹配到 vm.Items
+    for (int i = 0; i &lt; vm.Items.Count &amp;&amp; i &lt; files.Count; i++)
+    {
+        var file = files[i];
+        // ... 落盘等
+    }
+    return Ok();
+}</code></pre>
+
+                <h2 id="same-name">坑 2：同名多文件，未选中的项不会为 <code>null</code></h2>
+                <p>前端是这种结构：</p>
+                <pre><code>&lt;input type="file" name="photos" multiple /&gt;
+&lt;input type="file" name="photos" multiple /&gt;
+&lt;input type="file" name="photos" multiple /&gt;</code></pre>
+                <p>三个 input 共用 <code>photos</code>。后端用：</p>
+                <pre><code>public IFormFile[] Photos { get; set; }</code></pre>
+                <p>如果用户只选了第二个，前端只发出一个 <code>photos</code> 文件。<strong>不要</strong>假设 <code>Photos</code> 长度永远是 3，<strong>也不会有 null 填充</strong>：</p>
+                <pre><code>// Photos 实际是 1 个元素，不是 3 个元素 + 2 个 null
+foreach (var f in vm.Photos)
+{
+    // f 一定不是 null，但数组长度可能跟前端 input 数量不一致
+}</code></pre>
+                <div class="article-warning">这跟传统 <code>Request.Files</code> 行为不同：旧 ASP.NET 时代会把空 input 留 null，ASP.NET Core 直接跳过。</div>
+
+                <h2 id="limit">坑 3：上传大小被默认上限卡住</h2>
+                <p>ASP.NET Core 默认 <strong>单文件 128 MB，整次请求 28.6 MB</strong>。Kestrel 上限独立配置。</p>
+                <p>全局调整（<code>Program.cs</code>）：</p>
+                <pre><code>builder.WebHost.ConfigureKestrel(options =&gt;
+{
+    options.Limits.MaxRequestBodySize = 500 * 1024 * 1024; // 500 MB
+});
+
+builder.Services.Configure&lt;FormOptions&gt;(options =&gt;
+{
+    options.MultipartBodyLengthLimit = 500 * 1024 * 1024;
+});</code></pre>
+                <p>单个 Action 临时调整：</p>
+                <pre><code>[HttpPost]
+[RequestSizeLimit(500L * 1024 * 1024)]   // 500 MB
+[RequestFormLimits(MultipartBodyLengthLimit = 500L * 1024 * 1024)]
+public async Task&lt;IActionResult&gt; Upload(IFormFile file) { ... }</code></pre>
+                <div class="article-warning">如果部署在 IIS / Nginx 后面，<strong>三层都要改</strong>：Kestrel、ASP.NET Core、IIS（<code>web.config</code> 的 <code>requestLimits maxAllowedContentLength</code>）/ Nginx（<code>client_max_body_size</code>）。否则任意一层都会先拒。</div>
+
+                <h2 id="anti-virus">顺手处理：上传安全</h2>
+                <ul>
+                    <li>校验扩展名 + MIME（只信 <code>ContentType</code> 不可靠，前端可伪造）。</li>
+                    <li>落盘前<strong>不</strong>信任原文件名，用 <code>Path.GetRandomFileName()</code> 重命名。</li>
+                    <li>大文件用流式落盘：<code>await using var fs = System.IO.File.Create(path); await file.CopyToAsync(fs);</code>。</li>
+                    <li>对图片用 ImageSharp / System.Drawing 做解码校验，避免把恶意 SVG / 畸形 PNG 落库。</li>
+                </ul>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>上传相关属性放在 Action 参数最前面，不要塞进嵌套 ViewModel。</li>
+                    <li><code>IFormFile[]</code> 永远按<strong>实际收到的</strong>元素遍历，<strong>不要</strong>指望与 input 数量一致。</li>
+                    <li>调大上传上限必须改三层：Kestrel / FormOptions / 反向代理。</li>
+                    <li>大文件上传走分片或 tus 协议，不要把整个请求体塞进内存。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/mvc/models/model-binding" target="_blank" rel="noopener noreferrer">ASP.NET Core 模型绑定</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/mvc/models/file-uploads" target="_blank" rel="noopener noreferrer">ASP.NET Core 文件上传</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/fundamentals/servers/kestrel/options" target="_blank" rel="noopener noreferrer">Kestrel 选项</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/api/microsoft.aspnetcore.http.features.formoptions" target="_blank" rel="noopener noreferrer">FormOptions API</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#viewmodel">VM 数组不绑定</a>
+            <a href="#same-name">同名多文件</a>
+            <a href="#limit">大小限制</a>
+            <a href="#anti-virus">上传安全</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>安全｜范庆林的技术博客</title>
+    <meta name="description" content="PKI 与 X.509 证书系列：CSR、PEM、CA 信任链、CyberChef 解码、certificate vs license 的本质区别。">
+    <meta name="keywords" content="安全,PKI,X.509,CSR,证书,TLS,CyberChef">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/security/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="安全">
+    <meta property="og:description" content="PKI 与 X.509 证书系列：CSR、PEM、CA 信任链、CyberChef 解码、certificate vs license 的本质区别。">
+    <meta property="og:url" content="https://fanqinglin.com/security/">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="安全">
+    <meta name="twitter:description" content="PKI 与 X.509 证书系列：CSR、PEM、CA 信任链、CyberChef 解码、certificate vs license 的本质区别。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/security/",
+        "description": "PKI 与 X.509 证书系列：CSR、PEM、CA 信任链、CyberChef 解码、certificate vs license 的本质区别。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-home">
+    <header class="home-header">
+        <a class="home-logo" href="../index.html" aria-label="返回博客主页">
+            <span>FQ</span>
+            <strong>范庆林的技术笔记</strong>
+        </a>
+        <nav class="home-nav" aria-label="主导航">
+            <a href="../linux/index.html">Linux</a>
+            <a href="../csharp/index.html">C# / .NET</a>
+            <a href="../frontend/index.html">前端</a>
+            <a href="../database/index.html">数据库</a>
+            <a href="../devops/index.html">DevOps</a>
+            <a href="../containers/index.html">容器</a>
+            <a href="../toolbox/index.html">工具箱</a>
+            <a href="../xr/index.html">XR</a>
+        </nav>
+    </header>
+    <main>
+        <section class="home-hero">
+            <div class="home-hero__copy">
+                <span class="home-eyebrow">Category · 安全</span>
+                <h1><span>PKI、证书与网络安全</span></h1>
+                <p>本分类收录 3 篇文章，覆盖 PKI / X.509 证书体系、CSR 生成与解析、证书 vs license 区分等网络安全基础主题。</p>
+                <div class="home-hero__actions">
+                    <a class="home-button home-button--primary" href="../index.html">返回主页</a>
+                    <a class="home-button" href="#articles">查看全部 3 篇</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="home-section" id="articles" aria-labelledby="articles-title">
+            <div class="home-section__heading">
+                <div>
+                    <span class="home-eyebrow">All articles</span>
+                    <h2 id="articles-title">安全 · 3 篇</h2>
+                </div>
+                <a class="home-section__more" href="../index.html#categories">看全部分类 →</a>
+            </div>
+            <div class="home-article-grid">
+                <article class="home-article-card home-article-card--ready">
+                    <div class="home-article-card__top"><span>安全</span><time datetime="2026-08-13">08 / 13</time></div>
+                    <h3><a href="pki-csr-basics.html">PKI 与 CSR 入门（上篇）</a></h3>
+                    <p>从 CSR 是什么讲起，解释为什么 CSR 必须包含公钥、私钥永远在本地、PEM 编码与 DER 二进制的关系。</p>
+                    <div class="home-article-card__footer"><span>安全</span><a href="pki-csr-basics.html" aria-label="阅读 PKI 与 CSR 入门（上篇）">↗</a></div>
+                </article>
+                <article class="home-article-card home-article-card--ready">
+                    <div class="home-article-card__top"><span>安全</span><time datetime="2026-08-13">08 / 13</time></div>
+                    <h3><a href="pki-x509-certificate.html">PKI 与 X.509 证书（中篇）</a></h3>
+                    <p>CA 签名后的证书是否包含公钥、CA 信任链机制、X.509 证书内部字段、为什么别人用 CA 公钥验证。</p>
+                    <div class="home-article-card__footer"><span>安全</span><a href="pki-x509-certificate.html" aria-label="阅读 PKI 与 X.509 证书（中篇）">↗</a></div>
+                </article>
+                <article class="home-article-card home-article-card--ready">
+                    <div class="home-article-card__top"><span>安全</span><time datetime="2026-08-13">08 / 13</time></div>
+                    <h3><a href="pki-csr-format-license.html">PKI CSR 格式与 certificate vs license（下篇）</a></h3>
+                    <p>CSR 文件为什么是 PEM(Base64) 又显示成二进制 hex、CyberChef 怎么解析、CSR 扩展字段、certificate 与 license 的本质区别。</p>
+                    <div class="home-article-card__footer"><span>安全</span><a href="pki-csr-format-license.html" aria-label="阅读 PKI CSR 格式与 certificate vs license（下篇）">↗</a></div>
+                </article>
+            </div>
+        </section>
+    </main>
+    <footer class="home-footer">
+        <p>持续整理，持续更新。</p>
+        <span>© 2026 范庆林</span>
+    </footer>
+</body>
+</html>

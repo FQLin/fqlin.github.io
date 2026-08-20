@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nginx 常用模块与配置速查：location / proxy / upstream / rewrite / SSL-范庆林的技术博客</title>
+    <meta name="description" content="Nginx 常用模块与配置速查：location 匹配、反向代理、upstream 负载均衡、rewrite、SSL、缓存头、限速、安全模块。">
+    <meta name="keywords" content="Nginx,反向代理,负载均衡,upstream,rewrite,SSL,location,缓存">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/linux/nginx-config-cheatsheet.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Nginx 常用模块与配置速查：location / proxy / upstream / rewrite / SSL">
+    <meta property="og:description" content="Nginx 常用模块与配置速查：location 匹配、反向代理、upstream 负载均衡、rewrite、SSL、缓存头、限速、安全模块。">
+    <meta property="og:url" content="https://fanqinglin.com/linux/nginx-config-cheatsheet.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Nginx 常用模块与配置速查：location / proxy / upstream / rewrite / SSL">
+    <meta name="twitter:description" content="Nginx 常用模块与配置速查：location 匹配、反向代理、upstream 负载均衡、rewrite、SSL、缓存头、限速、安全模块。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/linux/nginx-config-cheatsheet.html",
+        "description": "Nginx 常用模块与配置速查：location 匹配、反向代理、upstream 负载均衡、rewrite、SSL、缓存头、限速、安全模块。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#install">安装</a><a href="#location">location 匹配</a><a href="#proxy">反向代理</a><a href="#upstream">负载均衡</a><a href="#rewrite">URL 重写</a><a href="#ssl">HTTPS</a><a href="#cache">缓存头</a><a href="#limit">限速与并发</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / Linux / Nginx</div>
+                <span class="article-kicker">Linux · Nginx</span>
+                <h1>Nginx 常用模块与配置速查：location / proxy / upstream / rewrite / SSL</h1>
+                <p class="article-deck">不背文档，按"要做什么"直接找对应配置片段。</p>
+                <div class="article-meta">
+                    <span>Nginx 1.24+</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="install">安装与目录</h2>
+                <p>主流发行版直接装包：</p>
+                <pre><code>apt install nginx     # Debian/Ubuntu
+yum install nginx     # RHEL/CentOS</code></pre>
+                <p>关键目录（RHEL 系）：</p>
+                <ul>
+                    <li><code>/etc/nginx/nginx.conf</code>：主配置</li>
+                    <li><code>/etc/nginx/conf.d/*.conf</code>：站点片段</li>
+                    <li><code>/var/log/nginx/</code>：日志</li>
+                    <li><code>/var/cache/nginx/</code>：缓存</li>
+                </ul>
+                <p>Docker 启动：</p>
+                <pre><code>docker run --name nginx -d -p 80:80 \
+  -v /path/to/nginx.conf:/etc/nginx/nginx.conf:ro \
+  -v /path/to/conf.d:/etc/nginx/conf.d:ro \
+  nginx:1.25-alpine</code></pre>
+                <p>基本管理：</p>
+                <pre><code>nginx -t                            # 检查配置
+nginx -s reload                     # 热重载
+nginx -V                            # 看编译参数 / 模块列表</code></pre>
+
+                <h2 id="location">location 匹配规则</h2>
+                <pre><code>location [=|^~|~|~*|/] /uri { ... }</code></pre>
+                <table>
+                    <thead><tr><th>前缀</th><th>含义</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>=</code></td><td>精确匹配，优先级最高</td></tr>
+                        <tr><td><code>^~</code></td><td>前缀匹配，不再走正则</td></tr>
+                        <tr><td><code>~</code></td><td>大小写敏感正则</td></tr>
+                        <tr><td><code>~*</code></td><td>大小写不敏感正则</td></tr>
+                        <tr><td>无前缀</td><td>普通前缀匹配</td></tr>
+                    </tbody>
+                </table>
+                <pre><code>location = /favicon.ico { ... }            # 精确
+location ^~ /static/ { ... }               # /static/ 前缀，不走正则
+location ~* \.(png|jpg|jpeg)$ { ... }     # 文件后缀
+location /api/ { proxy_pass http://app; }  # API 反代</code></pre>
+
+                <h2 id="proxy">反向代理</h2>
+                <pre><code>location /api/ {
+    proxy_pass http://127.0.0.1:8080/;     # 注意尾斜杠会去掉 /api/
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+
+    proxy_read_timeout 60s;
+}</code></pre>
+                <p>关键头：</p>
+                <ul>
+                    <li><code>X-Real-IP</code>：客户端真实 IP</li>
+                    <li><code>X-Forwarded-For</code>：链路 IP 链</li>
+                    <li><code>X-Forwarded-Proto</code>：原始协议（http/https）</li>
+                </ul>
+                <p>应用端要识别这些头，常见做法是 ASP.NET Core 里启用 <code>UseForwardedHeaders</code>。</p>
+
+                <h2 id="upstream">负载均衡</h2>
+                <pre><code>upstream backend {
+    least_conn;                              # 调度算法
+    server 10.0.0.1:8080 weight=3 max_fails=2 fail_timeout=10s;
+    server 10.0.0.2:8080 weight=1;
+    server 10.0.0.3:8080 backup;             # 备份
+    server 10.0.0.4:8080 down;               # 维护
+    keepalive 32;
+}
+
+server {
+    location / {
+        proxy_pass http://backend;
+    }
+}</code></pre>
+                <p>调度算法：</p>
+                <ul>
+                    <li><code>round-robin</code>（默认）：轮询</li>
+                    <li><code>weight=N</code>：加权轮询</li>
+                    <li><code>ip_hash</code>：按 IP 哈希（会话保持，但扩缩容会失效）</li>
+                    <li><code>least_conn</code>：最少的连接数优先</li>
+                    <li><code>hash $key consistent</code>：一致性哈希（Redis cluster 客户端常用）</li>
+                </ul>
+
+                <h2 id="rewrite">URL 重写</h2>
+                <pre><code>location /old/ {
+    rewrite ^/old/(.*)$ /new/$1 permanent;   # 301 永久重定向
+}
+
+location /temp/ {
+    rewrite ^/temp/(.*)$ /api/$1 last;       # 内部跳转，地址栏不变
+}</code></pre>
+                <p>四种 flag：</p>
+                <table>
+                    <thead><tr><th>flag</th><th>行为</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>last</code></td><td>停止当前 location 处理，重新匹配下一轮</td></tr>
+                        <tr><td><code>break</code></td><td>停止 rewrite，继续当前 location 其余指令</td></tr>
+                        <tr><td><code>redirect</code></td><td>302 临时重定向</td></tr>
+                        <tr><td><code>permanent</code></td><td>301 永久重定向</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="ssl">HTTPS</h2>
+                <pre><code>server {
+    listen 443 ssl http2;
+    server_name example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    location / {
+        root /var/www/html;
+    }
+}</code></pre>
+                <p>HTTP → HTTPS 跳转：</p>
+                <pre><code>server {
+    listen 80;
+    server_name example.com;
+    return 301 https://$host$request_uri;
+}</code></pre>
+                <p>Let's Encrypt 自动续签用 <code>certbot</code>。</p>
+
+                <h2 id="cache">缓存头与 expires</h2>
+                <pre><code>location ~* \.(js|css|png|jpg|jpeg|gif|svg|woff2?)$ {
+    expires 7d;                                    # 浏览器缓存 7 天
+    add_header Cache-Control "public, max-age=604800, immutable";
+    access_log off;                                # 静态不打日志
+}</code></pre>
+                <p>服务器端反向代理缓存：</p>
+                <pre><code>proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=api_cache:10m max_size=1g inactive=60m;
+
+location /api/ {
+    proxy_pass http://backend;
+    proxy_cache api_cache;
+    proxy_cache_key "$scheme$request_method$host$request_uri";
+    proxy_cache_valid 200 5m;
+    proxy_cache_valid 404 1m;
+    add_header X-Cache-Status $upstream_cache_status;
+}</code></pre>
+                <p><code>X-Cache-Status</code> 取值：<code>HIT</code> / <code>MISS</code> / <code>EXPIRED</code> / <code>BYPASS</code> / <code>STALE</code>。</p>
+
+                <h2 id="limit">限速与并发</h2>
+                <pre><code># 全局限速：每个 IP 每秒 10 个请求
+limit_req_zone $binary_remote_addr zone=req_limit:10m rate=10r/s;
+
+location /search {
+    limit_req zone=req_limit burst=20 nodelay;
+    proxy_pass http://backend;
+}
+
+# 限制并发连接
+limit_conn_zone $binary_remote_addr zone=conn_limit:10m;
+limit_conn conn_limit 20;</code></pre>
+                <p><code>burst=20 nodelay</code> 表示突发允许 20 个请求但立即执行，不排队。</p>
+
+                <h2 id="static">动静分离</h2>
+                <pre><code>location /static/ {
+    alias /var/www/static/;
+    expires 30d;
+    try_files $uri =404;
+}
+
+location / {
+    proxy_pass http://backend;
+}</code></pre>
+                <p><code>alias</code> 与 <code>root</code> 的区别：<code>alias</code> 会<strong>去掉</strong> location 前缀再拼；<code>root</code> 是<strong>保留</strong>。</p>
+
+                <h2 id="security">基础安全头</h2>
+                <pre><code>add_header X-Frame-Options          "SAMEORIGIN"          always;
+add_header X-Content-Type-Options   "nosniff"             always;
+add_header Referrer-Policy          "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy       "geolocation=(), microphone=()" always;</code></pre>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li><code>location</code> 写规则前先决定"精确 / 前缀 / 正则"中的哪一种，不要把正则当通配用。</li>
+                    <li>反向代理一定要补齐 <code>X-Real-IP</code> / <code>X-Forwarded-*</code> 三个头，应用端也要信任。</li>
+                    <li>改完配置必须 <code>nginx -t</code>，再用 <code>reload</code>，不要直接 <code>restart</code>。</li>
+                    <li>缓存目录要预留足够磁盘；超过 <code>max_size</code> 会触发 LRU 淘汰。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://nginx.org/en/docs/" target="_blank" rel="noopener noreferrer">Nginx 官方文档</a></li>
+                        <li><a href="https://nginx.org/en/docs/http/ngx_http_core_module.html#location" target="_blank" rel="noopener noreferrer">ngx_http_core_module#location</a></li>
+                        <li><a href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html" target="_blank" rel="noopener noreferrer">ngx_http_proxy_module</a></li>
+                        <li><a href="https://nginx.org/en/docs/http/ngx_http_upstream_module.html" target="_blank" rel="noopener noreferrer">ngx_http_upstream_module</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#install">安装</a>
+            <a href="#location">location</a>
+            <a href="#proxy">反向代理</a>
+            <a href="#upstream">负载均衡</a>
+            <a href="#rewrite">URL 重写</a>
+            <a href="#ssl">HTTPS</a>
+            <a href="#cache">缓存头</a>
+            <a href="#limit">限速</a>
+            <a href="#static">动静分离</a>
+            <a href="#security">安全头</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

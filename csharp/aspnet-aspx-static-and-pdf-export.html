@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ASP.NET WebForm 静态化 ASPX + 商业 PDF 导出现代化：从 .NET Framework 到 ASP.NET Core + 开源 PDF｜范庆林的技术博客</title>
+    <meta name="description" content="ASP.NET WebForm 时代 Server.Execute + Render 静态化 ASPX + 商业 PDF 控件方案的现代化：从 System.Web.HtmlTextWriter 到 Razor 视图，到 wkhtmltopdf / QuestPDF 开源替代。">
+    <meta name="keywords" content="ASP.NET,WebForm,ASPX,PDF 导出,wkhtmltopdf,QuestPDF,Razor">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/csharp/aspnet-aspx-static-and-pdf-export.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="ASP.NET WebForm 静态化 ASPX + 商业 PDF 导出现代化：从 .NET Framework 到 ASP.NET Core + 开源 PDF">
+    <meta property="og:description" content="ASP.NET WebForm 时代 Server.Execute + Render 静态化 ASPX + 商业 PDF 控件方案的现代化：从 System.Web.HtmlTextWriter 到 Razor 视图，到 wkhtmltopdf / QuestPDF 开源替代。">
+    <meta property="og:url" content="https://fanqinglin.com/csharp/aspnet-aspx-static-and-pdf-export.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="ASP.NET WebForm 静态化 ASPX + 商业 PDF 导出现代化：从 .NET Framework 到 ASP.NET Core + 开源 PDF">
+    <meta name="twitter:description" content="ASP.NET WebForm 时代 Server.Execute + Render 静态化 ASPX + 商业 PDF 控件方案的现代化：从 System.Web.HtmlTextWriter 到 Razor 视图，到 wkhtmltopdf / QuestPDF 开源替代。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/csharp/aspnet-aspx-static-and-pdf-export.html",
+        "description": "ASP.NET WebForm 时代 Server.Execute + Render 静态化 ASPX + 商业 PDF 控件方案的现代化：从 System.Web.HtmlTextWriter 到 Razor 视图，到 wkhtmltopdf / QuestPDF 开源替代。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#orig">老代码</a><a href="#modern">现代两步</a><a href="#pdf">PDF 导出</a><a href="#compare">对照</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / C# / .NET / ASP.NET</div>
+                <span class="article-kicker">C# · ASP.NET WebForm 4.x → ASP.NET Core 8</span>
+                <h1>ASP.NET WebForm 静态化 ASPX + 商业 PDF 导出现代化</h1>
+                <p class="article-deck">WebForm 时代的两步经典组合——<code>Server.Execute("pos.aspx")</code> + 重写 <code>Render(HtmlTextWriter)</code> + 商业 PDF 控件；本文给出 .NET 8 + 开源 PDF 替代方案。</p>
+                <div class="article-meta">
+                    <span>原文 ASP.NET WebForm 4.x</span>
+                    <span>目标 ASP.NET Core 8</span>
+                    <span>2026-08-11 发布</span>
+                </div>
+                <div class="article-version">
+                    <strong>版本声明：</strong>原文基于 ASP.NET WebForm + System.Web.UI + System.Web.Mvc 商业 PDF 组件（EVO PDF / HiQPdf 类）。
+                    ASP.NET Core 不再支持 <code>System.Web</code>，需要组合 Razor View 字符串化 + 开源 PDF 库（wkhtmltopdf / QuestPDF / PuppeteerSharp）。
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="orig">原始代码（ASP.NET WebForm / .NET Framework 4.x）</h2>
+
+                <h3>两步法</h3>
+                <ol>
+                    <li><code>Server.Execute("pos.aspx?id=...")</code> 触发 ASPX 渲染。</li>
+                    <li>在目标 ASPX 中重写 <code>Render(HtmlTextWriter writer)</code>，把页面输出劫持到 <code>StringWriter</code>，再写入文件。</li>
+                </ol>
+
+                <h3>1. ASPX 端：劫持 Render 输出</h3>
+                <pre><code class="language-csharp">// .aspx 后台代码
+protected override void Render(HtmlTextWriter writer)
+{
+    string htmlname = "POSDemo";
+    string fileName = string.Empty;
+    string content = string.Empty;
+
+    System.IO.StringWriter stringWriter = new System.IO.StringWriter();
+    HtmlTextWriter htmlWriter = new HtmlTextWriter(stringWriter);
+    System.IO.StreamWriter sw = null;
+    try
+    {
+        base.Render(htmlWriter);   // 触发标准渲染 → 内存中的 stringWriter
+        htmlWriter.Close();
+        content = stringWriter.ToString();
+        fileName = htmlname + ".html";
+
+        string path = HttpContext.Current.Server.MapPath("../Upload/");
+        System.Text.Encoding code = System.Text.Encoding.GetEncoding("utf-8");
+        sw = new System.IO.StreamWriter(path + fileName, false, code);
+        sw.Write(content);
+        sw.Flush();
+    }
+    finally
+    {
+        sw?.Dispose();
+        stringWriter.Dispose();
+        htmlWriter.Close();
+        htmlWriter.Dispose();
+    }
+}</code></pre>
+
+                <h3>2. 商业 PDF 控件转换（EVO PDF / HiQPdf）</h3>
+                <pre><code class="language-csharp">public class MyPDFGenerator
+{
+    public static byte[] Create(string sUrl)
+    {
+        try
+        {
+            var pdfConverter = new PdfConverter();   // 商业组件入口
+            pdfConverter.LicenseKey = "YOUR-COMMERCIAL-KEY";
+            pdfConverter.PdfDocumentOptions.PdfPageSize = PdfPageSize.A4;
+            pdfConverter.PdfDocumentOptions.GenerateSelectablePdf = true;
+            pdfConverter.PdfDocumentOptions.LiveUrlsEnabled = true;
+            pdfConverter.PdfDocumentInfo.AuthorName = "Your Company";
+
+            byte[] pdfBytes = pdfConverter.GetPdfFromUrlBytes(sUrl);
+            return pdfBytes;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}</code></pre>
+
+                <h3>3. 调用 + 输出</h3>
+                <pre><code class="language-csharp">byte[] bytes = MyPDFGenerator.Create(Server.MapPath("../Upload/POSDemo.html"));
+
+var response = System.Web.HttpContext.Current.Response;
+response.Clear();
+response.AddHeader("Content-Type", "binary/octet-stream");
+response.AddHeader("Content-Disposition", $"attachment; filename={fileName}.pdf; size={bytes.Length}");
+response.BinaryWrite(bytes);
+response.End();</code></pre>
+
+                <div class="article-warning">
+                    <strong>三处已过时：</strong>
+                    <ol>
+                        <li><code>System.Web.UI.Page.Render(HtmlTextWriter)</code> 是 WebForm 生命周期钩子，ASP.NET Core 没有等价物。</li>
+                        <li>商业 PDF 组件 <code>PdfConverter</code> 一是贵（LicenseKey + 商业授权），二是依赖 Win32 / WebKit 二进制，跨平台部署困难。</li>
+                        <li><code>HttpContext.Current</code> 是 .NET Framework 的静态访问点，ASP.NET Core 用 <code>IHttpContextAccessor</code> 注入。</li>
+                    </ol>
+                </div>
+
+                <h2 id="modern">ASP.NET Core 8 现代两步法</h2>
+
+                <h3>第一步：把 ASPX 改为 Razor 视图</h3>
+                <p>现代 ASP.NET Core 用 <code>.cshtml</code> 取代 <code>.aspx</code>。把"渲染成字符串"的逻辑写成一个服务：</p>
+                <pre><code class="language-csharp">using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewEngines;
+using Microsoft.AspNetCore.Mvc.Rendering;
+
+public class TemplateRendererService(IRazorViewEngine viewEngine,
+                                   ITempDataProvider tempDataProvider,
+                                   ICompositeViewEngine compositeEngine,
+                                   IServiceProvider serviceProvider)
+{
+    public async Task&lt;string&gt; RenderAsync(string viewName, object model, CancellationToken ct)
+    {
+        var viewResult = viewEngine.FindView(ControllerContext, viewName, isMainPage: false);
+
+        var actionContext = new ActionContext(
+            new DefaultHttpContext { RequestServices = serviceProvider },
+            new RouteData(),
+            new ActionDescriptor(),
+            modelState: new Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary());
+
+        var view = viewResult.View;
+        using var stringWriter = new StringWriter();
+        var viewContext = new ViewContext(
+            actionContext, view, new ViewDataDictionary<T<Model>>(model, new Microsoft.AspNetCore.Mvc.ModelBinding.EmptyModelMetadataProvider()),
+            new TempDataDictionary(actionContext.HttpContext, tempDataProvider),
+            stringWriter,
+            new HtmlHelperOptions());
+
+        await view.RenderAsync(viewContext);
+        return stringWriter.ToString();
+    }
+}</code></pre>
+                <p>这是"在内存渲染 Razor 视图"的完整方案，可替代原 <code>Server.Execute</code> + <code>Render</code>。</p>
+
+                <h3>第二步：把 HTML 落盘成静态文件</h3>
+                <pre><code class="language-csharp">[ApiController]
+[Route("api/invoices")]
+public class InvoiceController(TemplateRendererService renderer,
+                                IWebHostEnvironment env) : ControllerBase
+{
+    [HttpPost("render-and-save")]
+    public async Task&lt;IActionResult&gt; RenderAndSave([FromBody] InvoiceRequest req, CancellationToken ct)
+    {
+        // 1. 渲染 Razor 视图
+        var html = await renderer.RenderAsync("InvoiceTemplate", req, ct);
+
+        // 2. 写盘（路径用 IWebHostEnvironment 注入，不再用 Server.MapPath）
+        var uploadDir = Path.Combine(env.WebRootPath, "Upload");
+        Directory.CreateDirectory(uploadDir);
+
+        var fileName = $"Invoice-{req.InvoiceId}.html";
+        var filePath = Path.Combine(uploadDir, fileName);
+        await System.IO.File.WriteAllTextAsync(filePath, html, Encoding.UTF8, ct);
+
+        // 3. 返回文件路径供后续转 PDF 用
+        return Ok(new { Path = filePath });
+    }
+}</code></pre>
+
+                <h2 id="pdf">PDF 导出：3 个开源替代方案</h2>
+
+                <h3>方案 1：wkhtmltopdf（最接近原方案）</h3>
+                <p>如果你的 ASPX 输出是"含 CSS 的 HTML 页面"，wkhtmltopdf 用 WebKit 渲染引擎直接出 PDF，**几乎 1:1 复刻浏览器所见即所得**。</p>
+                <pre><code class="language-bash"># 安装
+# Ubuntu:  sudo apt install wkhtmltopdf
+# macOS:    brew install --cask wkhtmltopdf
+# Windows:  https://wkhtmltopdf.org/downloads.html</code></pre>
+                <pre><code class="language-csharp">public class WkhtmltopdfService
+{
+    public async Task&lt;byte[]&gt; HtmlToPdfAsync(string htmlOrUrl, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "wkhtmltopdf",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        psi.ArgumentList.Add("--enable-local-file-access");
+        psi.ArgumentList.Add("--print-media-type");
+        psi.ArgumentList.Add("--quiet");
+
+        if (htmlOrUrl.StartsWith("http") || File.Exists(htmlOrUrl))
+            psi.ArgumentList.Add(htmlOrUrl);
+        else
+        {
+            // HTML 字符串 → 临时文件
+            var tmp = Path.GetTempFileName() + ".html";
+            await File.WriteAllTextAsync(tmp, htmlOrUrl, ct);
+            psi.ArgumentList.Add(tmp);
+        }
+
+        psi.ArgumentList.Add("-");  // 输出到 stdout
+
+        using var proc = Process.Start(psi);
+        var pdf = await proc!.StandardOutput.BaseStream.ReadAllBytesAsync(ct);
+        await proc.WaitForExitAsync(ct);
+        return pdf;
+    }
+}</code></pre>
+                <p>优缺点：</p>
+                <ul>
+                    <li>优点：CSS 支持最好；无须 License；与原 EVO PDF 行为最接近。</li>
+                    <li>缺点：依赖外部进程；WebKit 内核较老；新版 wkhtmltopdf 已停止。</li>
+                </ul>
+
+                <h3>方案 2：QuestPDF（C# 首选）</h3>
+                <p>QuestPDF 是现代化的 .NET PDF 库，**用 C# 直接描述页面布局**，不依赖外部进程。</p>
+                <pre><code class="language-csharp">// NuGet: QuestPDF
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
+
+public class InvoicePdfService
+{
+    public byte[] Generate(InvoiceRequest invoice)
+    {
+        QuestPDF.Settings.License = LicenseType.Community;  // 个人 /年营收 < 100 万 USD 即可用
+
+        return Document.Create(container =&gt;
+        {
+            container.Page(page =&gt;
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, QuestPDF.Infrastructure.Unit.Centimetre);
+                page.DefaultTextStyle(t =&gt; t.FontSize(10));
+
+                page.Header().Text($"Invoice #{invoice.InvoiceId}").FontSize(20).Bold();
+
+                page.Content().PaddingVertical(1, QuestPDF.Infrastructure.Unit.Centimetre).Column(column =&gt;
+                {
+                    column.Spacing(10);
+
+                    column.Item().Text($"Customer: {invoice.CustomerName}");
+
+                    column.Item().Table(table =&gt;
+                    {
+                        table.ColumnsDefinition(c =&gt;
+                        {
+                            c.ConstantColumn(80);  // Item
+                            c.RelativeColumn();    // Description
+                            c.ConstantColumn(60);  // Qty
+                            c.ConstantColumn(80);  // Price
+                        });
+
+                        table.Header(h =&gt;
+                        {
+                            h.Cell().Text("Item").Bold();
+                            h.Cell().Text("Description");
+                            h.Cell().AlignRight().Text("Qty");
+                            h.Cell().AlignRight().Text("Price");
+                        });
+
+                        foreach (var line in invoice.Lines)
+                        {
+                            table.Cell().Text(line.Sku);
+                            table.Cell().Text(line.Description);
+                            table.Cell().AlignRight().Text($"{line.Quantity}");
+                            table.Cell().AlignRight().Text($"{line.UnitPrice:C}");
+                        }
+                    });
+                });
+
+                page.Footer().AlignRight().Text(t =&gt;
+                {
+                    t.Span("Total: ");
+                    t.Span($"{invoice.Total:C}").Bold();
+                });
+            });
+        }).GeneratePdf();
+    }
+}</code></pre>
+                <p>优缺点：</p>
+                <ul>
+                    <li>优点：纯 C#，易于版本控制；无需外部进程；布局代码可测试；中文字体嵌入支持良好。</li>
+                    <li>缺点：需重新设计页面布局（不复用 HTML）；企业用途需付费 License（年收入 100 万 USD 以上）。</li>
+                </ul>
+
+                <h3>方案 3：PuppeteerSharp（Chromium 引擎）</h3>
+                <p>如果你想"打开 HTML 页面、点击按钮再导出 PDF"，PuppeteerSharp 直接调 Chromium。</p>
+                <pre><code class="language-csharp">// NuGet: PuppeteerSharp
+using PuppeteerSharp;
+
+public class PuppeteerPdfService
+{
+    public async Task&lt;byte[]&gt; UrlToPdfAsync(string url, CancellationToken ct)
+    {
+        await new BrowserFetcher().DownloadAsync();
+        await using var browser = await Puppeteer.LaunchAsync(new LaunchOptions { Headless = true });
+        await using var page = await browser.NewPageAsync();
+        await page.GoToAsync(url);
+        return await page.PdfDataAsync(new PdfOptions { Format = PaperFormat.A4 });
+    }
+}</code></pre>
+                <p>优缺点：</p>
+                <ul>
+                    <li>优点：现代 Chromium 引擎，CSS / JS 完美支持；可编程（点击、截图区域）。</li>
+                    <li>缺点：Chromium 二进制大（~150 MB）；首次启动慢；不适合高并发。</li>
+                </ul>
+
+                <h2 id="compare">方案对比</h2>
+                <table>
+                    <thead><tr><th>方案</th><th>依赖</th><th>CSS 支持</th><th>跨平台</th><th>License</th><th>性能</th></tr></thead>
+                    <tbody>
+                        <tr><td>原 EVO PDF</td><td>商业 native DLL</td><td>中等</td><td>Win 优先</td><td>付费</td><td>本地快</td></tr>
+                        <tr><td>wkhtmltopdf</td><td>WebKit 二进制</td><td>最好</td><td>是</td><td>LGPL</td><td>本地快</td></tr>
+                        <tr><td>QuestPDF</td><td>纯 .NET</td><td>N/A（自绘）</td><td>是</td><td>社区 / 商业</td><td>最快</td></tr>
+                        <tr><td>PuppeteerSharp</td><td>Chromium</td><td>最好</td><td>是</td><td>MIT</td><td>慢（启动）</td></tr>
+                    </tbody>
+                </table>
+                <p>选型建议：</p>
+                <ul>
+                    <li>已有 HTML 模板且团队不熟悉布局 → <strong>wkhtmltopdf</strong>。</li>
+                    <li>愿意重新设计布局、追求高并发 → <strong>QuestPDF</strong>。</li>
+                    <li>需要 JavaScript / 浏览器行为 → <strong>PuppeteerSharp</strong>。</li>
+                </ul>
+
+                <h2 id="endpoints">完整 Controller 示例（QuestPDF）</h2>
+                <pre><code class="language-csharp">[ApiController]
+[Route("api/invoices")]
+public class InvoiceController(InvoicePdfService pdfService) : ControllerBase
+{
+    [HttpPost("{id:int}/pdf")]
+    public IActionResult GeneratePdf(int id)
+    {
+        var invoice = _db.Invoices
+            .Include(i =&gt; i.Lines)
+            .First(i =&gt; i.Id == id);
+
+        var bytes = pdfService.Generate(invoice);
+
+        return File(bytes, "application/pdf", $"Invoice-{id}.pdf");
+    }
+}</code></pre>
+                <p>></p>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li><strong>尽量避免"渲染 HTML → 转 PDF"</strong>：它是 anti-pattern——HTML 是流式的，PDF 是分页的，"所见即所得"只在 wkhtmltopdf 这样的浏览器内核下成立。</li>
+                    <li>报表类需求 → <strong>QuestPDF 优先</strong>：纯 C# 描述页面，单元测试可写，部署简单。</li>
+                    <li>需要复用 HTML 模板 → wkhtmltopdf + 模板尽量简单（避免 flex / grid 复杂布局）。</li>
+                    <li>PDF 里有中文 → <strong>必须嵌入字体</strong>。QuestPDF 自动嵌入；wkhtmltopdf 需要 <code>--enable-local-file-access</code> + 字体路径配置。</li>
+                    <li>生产部署用 <strong>Docker</strong> 一次性带好 wkhtmltopdf / Chromium 二进制，避免运行时手动装。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://wkhtmltopdf.org/" target="_blank" rel="noopener noreferrer">wkhtmltopdf</a></li>
+                        <li><a href="https://www.questpdf.com/" target="_blank" rel="noopener noreferrer">QuestPDF</a></li>
+                        <li><a href="https://github.com/hardkoded/puppeteer-sharp" target="_blank" rel="noopener noreferrer">PuppeteerSharp</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/mvc/views/razor" target="_blank" rel="noopener noreferrer">ASP.NET Core Razor 视图</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/mvc/views/view-compilation" target="_blank" rel="noopener noreferrer">ASP.NET Core 运行时 Razor 编译</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#orig">老代码</a>
+            <a href="#modern">现代两步</a>
+            <a href="#pdf">PDF 导出</a>
+            <a href="#compare">方案对比</a>
+            <a href="#endpoints">Controller 示例</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

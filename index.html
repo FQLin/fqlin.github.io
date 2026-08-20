@@ -1,43 +1,127 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>范庆林 | 个人主页搭建中</title>
-        <style>
-            body {
-                margin: 0;
-                padding: 0;
-                font-family: "Segoe UI", "Helvetica Neue", sans-serif;
-                background: linear-gradient(to right, #6a11cb, #2575fc);
-                color: #fff;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                text-align: center;
-                flex-direction: column;
-            }
-            h1 {
-                font-size: 3em;
-                margin: 0.2em 0;
-            }
-            p {
-                font-size: 1.2em;
-                opacity: 0.85;
-            }
-            .footer {
-                position: absolute;
-                bottom: 20px;
-                font-size: 0.9em;
-                color: rgba(255, 255, 255, 0.5);
-            }
-        </style>
-    </head>
-    <body>
-        <h1>🚧 个人主页搭建中</h1>
-        <p>敬请期待，即将上线！</p>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>范庆林的技术博客</title>
+    <meta name="description" content="范庆林的个人技术博客，记录 C#/.NET、Linux、DevOps、前端、数据库、容器、XR 与工程实践中的真实问题与解决方案。">
+    <meta name="keywords" content="范庆林,技术博客,C#,.NET,Linux,DevOps,Docker,Kubernetes,前端,Redis,XR,Unity">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="范庆林的技术博客">
+    <meta property="og:description" content="范庆林的个人技术博客，记录 C#/.NET、Linux、DevOps、前端、数据库、容器、XR 与工程实践中的真实问题与解决方案。">
+    <meta property="og:url" content="https://fanqinglin.com/">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="范庆林的技术博客">
+    <meta name="twitter:description" content="范庆林的个人技术博客，记录 C#/.NET、Linux、DevOps、前端、数据库、容器、XR 与工程实践中的真实问题与解决方案。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/",
+        "description": "范庆林的个人技术博客，记录 C#/.NET、Linux、DevOps、前端、数据库、容器、XR 与工程实践中的真实问题与解决方案。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="assets/blog.css">
+</head>
+<body class="blog-home">
+    <header class="home-header">
+        <a class="home-logo" href="index.html" aria-label="返回博客主页">
+            <span>FQ</span>
+            <strong>范庆林的技术笔记</strong>
+        </a>
+        <nav class="home-nav" aria-label="主导航">
+            <a href="linux/index.html">Linux</a>
+            <a href="csharp/index.html">C# / .NET</a>
+            <a href="frontend/index.html">前端</a>
+            <a href="database/index.html">数据库</a>
+            <a href="devops/index.html">DevOps</a>
+            <a href="containers/index.html">容器</a>
+            <a href="toolbox/index.html">工具箱</a>
+            <a href="xr/index.html">XR</a>
+        </nav>
+    </header>
+    <main>
+        <section class="home-hero" id="about">
+            <div class="home-hero__copy">
+                <span class="home-eyebrow">Development · Operations · Notes</span>
+                <h1><span>把解决过的问题，</span><em>写成下一次的答案。</em></h1>
+                <p>这里整理开发、运维和工程实践中的知识点。它们来自真实问题，也服务于下一次快速定位和解决问题。</p>
+                <div class="home-hero__actions">
+                    <a class="home-button home-button--primary" href="#latest">浏览文章</a>
+                    <a class="home-button" href="#categories">按分类查找</a>
+                </div>
+            </div>
+            <aside class="home-console" aria-label="博客主题摘要">
+                <div class="home-console__bar"><i></i><i></i><i></i><span>knowledge-base.yml</span></div>
+                <pre><code><span>author:</span> 范庆林
+<span>focus:</span> C# / .NET · Linux · DevOps · XR
+<span>updated:</span> 2026-08-10
+<span>articles:</span> 38
+<span>categories:</span> 9</code></pre>
+            </aside>
+        </section>
 
-        <div class="footer">&copy; 2025 我的博客. All rights reserved.</div>
-    </body>
+        <section class="home-section" id="latest" aria-labelledby="latest-title">
+            <div class="home-section__heading">
+                <div>
+                    <span class="home-eyebrow">Recent updates</span>
+                    <h2 id="latest-title">最近整理</h2>
+                </div>
+                <a class="home-section__more" href="#categories">看全部分类 →</a>
+            </div>
+            <div class="home-article-grid">
+                <article class="home-article-card home-article-card--ready">
+                    <div class="home-article-card__top"><span>安全</span><time datetime="2026-08-13">08 / 13</time></div>
+                    <h3><a href="security/pki-csr-format-license.html">PKI CSR 格式与 certificate vs license（下篇）</a></h3>
+                    <p>CSR 文件为什么是 PEM(Base64) 又显示成二进制 hex、CyberChef 怎么解析、CSR 扩展字段、certificate 与 license 的本质区别。</p>
+                    <div class="home-article-card__footer"><span>安全</span><a href="security/pki-csr-format-license.html" aria-label="阅读 PKI CSR 格式与 certificate vs license（下篇）">↗</a></div>
+                </article>
+                <article class="home-article-card home-article-card--ready">
+                    <div class="home-article-card__top"><span>安全</span><time datetime="2026-08-13">08 / 13</time></div>
+                    <h3><a href="security/pki-x509-certificate.html">PKI 与 X.509 证书（中篇）</a></h3>
+                    <p>CA 签名后的证书是否包含公钥、CA 信任链机制、X.509 证书内部字段、为什么别人用 CA 公钥验证。</p>
+                    <div class="home-article-card__footer"><span>安全</span><a href="security/pki-x509-certificate.html" aria-label="阅读 PKI 与 X.509 证书（中篇）">↗</a></div>
+                </article>
+                <article class="home-article-card home-article-card--ready">
+                    <div class="home-article-card__top"><span>安全</span><time datetime="2026-08-13">08 / 13</time></div>
+                    <h3><a href="security/pki-csr-basics.html">PKI 与 CSR 入门（上篇）</a></h3>
+                    <p>从 CSR 是什么讲起，解释为什么 CSR 必须包含公钥、私钥永远在本地、PEM 编码与 DER 二进制的关系。</p>
+                    <div class="home-article-card__footer"><span>安全</span><a href="security/pki-csr-basics.html" aria-label="阅读 PKI 与 CSR 入门（上篇）">↗</a></div>
+                </article>
+            </div>
+        </section>
+
+        <section class="home-section" id="categories" aria-labelledby="categories-title">
+            <div class="home-section__heading">
+                <div><span class="home-eyebrow">Explore by topic</span><h2 id="categories-title">知识分类</h2></div>
+            </div>
+            <div class="home-category-grid">
+                <article><strong>01</strong><h3><a href="linux/index.html">Linux 与运维</a></h3><p>系统、网络、防火墙与常用工具</p><span class="home-category-count">4 篇</span></article>
+                <article><strong>02</strong><h3><a href="csharp/index.html">C# / .NET</a></h3><p>开发实践、框架与测试工程</p><span class="home-category-count">11 篇</span></article>
+                <article><strong>03</strong><h3><a href="frontend/index.html">前端</a></h3><p>浏览器、CSS 与移动端兼容</p><span class="home-category-count">2 篇</span></article>
+                <article><strong>04</strong><h3><a href="database/index.html">数据库</a></h3><p>Redis、MongoDB、SQL 与检索</p><span class="home-category-count">3 篇</span></article>
+                <article><strong>05</strong><h3><a href="devops/index.html">DevOps</a></h3><p>容器、CI/CD 与代码质量</p><span class="home-category-count">3 篇</span></article>
+                <article><strong>06</strong><h3><a href="containers/index.html">容器与编排</a></h3><p>Docker、Kubernetes 与集群</p><span class="home-category-count">1 篇</span></article>
+                <article><strong>07</strong><h3><a href="toolbox/index.html">工具箱</a></h3><p>音视频、效率工具与命令参考</p><span class="home-category-count">1 篇</span></article>
+                <article><strong>08</strong><h3><a href="xr/index.html">XR 项目专题</a></h3><p>Unity XR Interaction Toolkit 3.x 中文注释与源码笔记</p><span class="home-category-count">9 篇</span></article>
+                <article><strong>09</strong><h3><a href="security/index.html">安全</a></h3><p>PKI、证书、TLS 与网络安全基础</p><span class="home-category-count">3 篇</span></article>
+            </div>
+        </section>
+    </main>
+    <footer class="home-footer">
+        <p>持续整理，持续更新。</p>
+        <span>© 2026 范庆林</span>
+    </footer>
+</body>
 </html>

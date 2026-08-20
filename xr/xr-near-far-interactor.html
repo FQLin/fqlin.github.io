@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NearFarInteractor 中文注释版：XR 交互总控-范庆林的技术博客</title>
+    <meta name="description" content="Unity XR Interaction Toolkit 3.x NearFarInteractor 中文注释版：从总控定位、属性、Region / NearCasterSortingStrategy / InteractorFarAttachMode 三个枚举，到相关组件与 XR UI 落地链路。">
+    <meta name="keywords" content="NearFarInteractor,XRI,XR,Unity,交互总控,中文注释">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/xr/xr-near-far-interactor.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="NearFarInteractor 中文注释版：XR 交互总控">
+    <meta property="og:description" content="Unity XR Interaction Toolkit 3.x NearFarInteractor 中文注释版：从总控定位、属性、Region / NearCasterSortingStrategy / InteractorFarAttachMode 三个枚举，到相关组件与 XR UI 落地链路。">
+    <meta property="og:url" content="https://fanqinglin.com/xr/xr-near-far-interactor.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="NearFarInteractor 中文注释版：XR 交互总控">
+    <meta name="twitter:description" content="Unity XR Interaction Toolkit 3.x NearFarInteractor 中文注释版：从总控定位、属性、Region / NearCasterSortingStrategy / InteractorFarAttachMode 三个枚举，到相关组件与 XR UI 落地链路。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/xr/xr-near-far-interactor.html",
+        "description": "Unity XR Interaction Toolkit 3.x NearFarInteractor 中文注释版：从总控定位、属性、Region / NearCasterSortingStrategy / InteractorFarAttachMode 三个枚举，到相关组件与 XR UI 落地链路。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#what">总控定位</a><a href="#props">关键属性</a><a href="#enum">三个枚举</a><a href="#related">相关组件</a><a href="#xrui">XR UI 链路</a><a href="#scene">场景配置</a><a href="#pitfalls">常见坑</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / XR 项目专题 / Unity XR Interaction Toolkit</div>
+                <span class="article-kicker">XR · XRI 3.x</span>
+                <h1>NearFarInteractor 中文注释版：XR 交互总控</h1>
+                <p class="article-deck">不只是"一条射线"，而是近距 + 远距 + UI + 附着控制的统一交互器；本文用可读的方式拆开它的每个参数。</p>
+                <div class="article-meta">
+                    <span>XRI 3.4.1</span>
+                    <span>2026-08-06 重写</span>
+                    <span>Unity XR</span>
+                    <span>VR 项目专题</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="what">它是什么</h2>
+                <p><code>NearFarInteractor</code> 是一种同时使用近距离交互探测器和远距离交互探测器的 Interactor，<strong>在近距和远距之间做平滑切换</strong>，并把远距探测数据用来与 UGUI 交互。</p>
+                <p>设计上强调模块化和可扩展性。高级开发者可以自定义近距 / 远距探测器（分别实现 <code>IInteractionCaster</code> 和 <code>ICurveInteractionCaster</code>），以及自定义附着控制器 <code>IInteractionAttachController</code>。</p>
+                <p>一句话定位：</p>
+                <blockquote><code>NearFarInteractor</code> 不是那条"可见的线"，而是一整套"近距 + 远距 + UI + 附着控制"的交互总控。线的视觉通常由 <code>CurveVisualController + LineRenderer</code> 负责。</blockquote>
+                <p>目前两个需要注意的能力缺口：</p>
+                <ul>
+                    <li>AR 设备的 AR 数据射线仍需要 <code>XRRayInteractor</code>，<code>NearFarInteractor</code> 暂不支持这个用例。</li>
+                    <li>官方文档写 <code>NearFarInteractor</code> 不支持用摇杆直接控制 attach transform——但 Starter Assets 3.4.x 中实际把操控能力下沉到了 <code>InteractionAttachController</code>，所以从工程实践仍可通过预制件实现远距离操控。</li>
+                </ul>
+
+                <h2 id="props">关键属性</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th><th>实践建议</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Interaction Manager</code></td><td>通信的 XR Interaction Manager</td><td>留空，让系统自动找</td></tr>
+                        <tr><td><code>Interaction Layer Mask</code></td><td>只允许与重叠层 Interactable 交互</td><td>XR 自己的层，不是 Unity 物理 Layer</td></tr>
+                        <tr><td><code>Select Action Trigger</code></td><td>扳机如何触发选中（按住 / 切换 / 粘性）</td><td>抓取类用 State，按钮类用 Toggle</td></tr>
+                        <tr><td><code>Keep Selected Target Valid</code></td><td>首次选中后是否保持选中</td><td>抓取物体建议 <code>true</code>，传送建议 <code>false</code></td></tr>
+                        <tr><td><code>Allow Hovered Activate</code></td><td>未选中时悬停是否触发 Activate</td><td>次级动作开关，默认即可</td></tr>
+                        <tr><td><code>Target Priority Mode</code></td><td>追踪目标数量（性能排序）</td><td>做复杂反馈时再调</td></tr>
+                        <tr><td><code>Interaction Attach Controller</code></td><td>附着控制器（手感）</td><td>见下方"相关组件"</td></tr>
+                        <tr><td><code>Enable Near Casting</code></td><td>是否启用近距离探测</td><td>首页可关；质量评价场景建议开</td></tr>
+                        <tr><td><code>Enable Far Casting</code></td><td>是否启用远距离探测</td><td>首页与质量评价都需要</td></tr>
+                        <tr><td><code>Enable UI Interaction</code></td><td>是否允许点击 World Space UI</td><td>要做 UI 交互必须开</td></tr>
+                        <tr><td><code>UI Press Input</code></td><td>点击 UI 按钮的输入</td><td>绑定到扳机或 Grip</td></tr>
+                        <tr><td><code>Far Attach Mode</code></td><td>远距选中的附着模式（Near / Far）</td><td>点云实验建议 Far</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="enum">三个枚举</h2>
+
+                <h3>Region</h3>
+                <p>由 <code>selectionRegion</code> 使用，表示当前选择发生在哪个区域：</p>
+                <ul>
+                    <li><code>None</code>：当前没有选中。</li>
+                    <li><code>Near</code>：近距离选中。</li>
+                    <li><code>Far</code>：远距离选中。</li>
+                </ul>
+                <p>做不同提示效果时这个状态很有用。</p>
+
+                <h3>NearCasterSortingStrategy</h3>
+                <p>近距探测发现多个候选目标时如何排序：</p>
+                <ul>
+                    <li><code>None</code>：不排序。</li>
+                    <li><code>SquareDistance</code>：按 Interactor 与 Interactable 附着点的平方距离排序，性能最好。</li>
+                    <li><code>InteractableBased</code>：由 Interactable 自身策略排序。</li>
+                    <li><code>ClosestPointOnCollider</code>：按 Interactor 附着点与 Collider 最近点的平方距离排序，最精确。</li>
+                </ul>
+
+                <h3>InteractorFarAttachMode</h3>
+                <p>远距选中时如何调整 attach transform：</p>
+                <ul>
+                    <li><code>Near</code>：把 attach transform 重置到近处点位。物体被拉到手边。</li>
+                    <li><code>Far</code>：把 attach transform 移到远处命中点。物体留在原位，可远程操控。</li>
+                </ul>
+                <p>实现了 <code>IFarAttachProvider</code> 的 <code>XRGrabInteractable</code> 可覆盖 Interactor 默认行为。对点云实验这类"展示而非抓物"场景，<code>Far</code> 通常更合适——避免模型突然飞到用户脸前。</p>
+
+                <h2 id="related">相关组件</h2>
+
+                <h3>InteractionAttachController</h3>
+                <p>附着点运动规则执行器——决定"远距选中后物体的手感"：稳定、平滑、推拉、旋转、距离速度缩放。详情见《InteractionAttachController 中文注释版》。</p>
+
+                <h3>CurveInteractionCaster</h3>
+                <p>远距离探测器。真正把远程射线/曲线打出去，看打中了什么。支持 <code>Raycast</code>、<code>SphereCast</code>、<code>ConeCast</code>。Starter Assets 里通常配合柔和的交互曲线，不是死直的激光。</p>
+
+                <h3>SphereInteractionCaster</h3>
+                <p>近距离探测器。在手附近做球形检测，判断是否碰到附近可交互物体。"手靠近就抓"的体验靠它。</p>
+
+                <h3>CurveVisualController</h3>
+                <p>可视化控制器，<strong>只负责把线画好看</strong>。它根据命中状态、UI 状态、选中状态动态切换颜色、宽度、弯曲程度。</p>
+                <div class="article-warning">线在但点不到？先检查 <code>NearFarInteractor</code> / <code>CurveInteractionCaster</code> / Canvas / 输入动作，<strong>不要先去怪 <code>CurveVisualController</code></strong>。</div>
+
+                <h2 id="xrui">XR UI 链路</h2>
+                <p>要让 XR 控制器与 Unity UI 正常交互，<strong>四条同时满足</strong>：</p>
+                <ol>
+                    <li><code>Canvas.RenderMode = World Space</code>（<code>Screen Space - Overlay</code> 不会按预期工作）</li>
+                    <li>Canvas 上挂 <code>TrackedDeviceGraphicRaycaster</code>（必须与 Canvas 同物体）</li>
+                    <li>场景里有 <code>EventSystem + XRUIInputModule</code>（不要混用旧 <code>StandaloneInputModule</code>）</li>
+                    <li><code>NearFarInteractor.Enable UI Interaction = true</code> 且 <code>UI Press Input</code> 绑定</li>
+                </ol>
+
+                <h2 id="scene">场景配置建议</h2>
+                <table>
+                    <thead><tr><th>场景</th><th>推荐配置</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>Home（首页）</strong></td><td><code>Enable UI Interaction = true</code>，<code>Enable Far Casting = true</code>，近距可关；Canvas 用 <code>World Space</code> + <code>TrackedDeviceGraphicRaycaster</code></td></tr>
+                        <tr><td><strong>质量评价</strong></td><td><code>Near Casting</code> + <code>Far Casting</code> 都开；<code>Far Attach Mode = Far</code>；模型根对象有 Collider + <code>XRGrabInteractable</code></td></tr>
+                        <tr><td><strong>JND</strong></td><td>沿用质量评价配置；优先保证 UI 点击与远距稳定选中</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="pitfalls">常见坑</h2>
+                <ul>
+                    <li><strong>把 XR 交互层和 Unity 物理层混为一谈：</strong>射线碰到 Collider 但选不中 → 通常是 <code>Interaction Layer Mask</code> 不匹配；对象挂了 <code>XRGrabInteractable</code> 但射线像穿过去 → 物理 <code>Raycast Mask</code> 没包含该 Layer。</li>
+                    <li><strong>只有线没有交互：</strong>可能 <code>Canvas</code> 不是 <code>World Space</code>、少了 <code>TrackedDeviceGraphicRaycaster</code>、没装 <code>XRUIInputModule</code>、<code>Enable UI Interaction</code> 未开启。</li>
+                    <li><strong>3D 模型点不到：</strong>模型没 Collider、根对象没挂 <code>XRGrabInteractable</code>、<code>Interaction Layer Mask</code> 不匹配。</li>
+                    <li><strong>远距抓取体验不对：</strong>物体突然飞到脸上 / 抖动 / 推拉肉 → 检查 <code>Far Attach Mode</code> 和 <code>InteractionAttachController</code>。</li>
+                </ul>
+
+                <h2 id="references">参考资料</h2>
+                <ul>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html" target="_blank" rel="noopener noreferrer">XR Interaction Toolkit 3.4 手册</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#near-far-interactor" target="_blank" rel="noopener noreferrer">Near-Far Interactor</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#ui-setup" target="_blank" rel="noopener noreferrer">XR UI Setup</a></li>
+                    <li><a href="https://github.com/Unity-Technologies/XR-Interaction-Toolkit-Examples" target="_blank" rel="noopener noreferrer">XR Interaction Toolkit 示例仓库</a></li>
+                </ul>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#what">总控定位</a>
+            <a href="#props">关键属性</a>
+            <a href="#enum">三个枚举</a>
+            <a href="#related">相关组件</a>
+            <a href="#xrui">XR UI 链路</a>
+            <a href="#scene">场景配置</a>
+            <a href="#pitfalls">常见坑</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Razor 中的 @helper 与 @functions：从 Web Pages 到 ASP.NET Core Tag Helper-范庆林的技术博客</title>
+    <meta name="description" content="Razor 中 @helper 与 @functions 的区别：使用场景、返回值、ASP.NET Core Tag Helper 的现代替代方案。">
+    <meta name="keywords" content="Razor,@helper,@functions,Tag Helper,ASP.NET Core,Web Pages">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/csharp/razor-helper-vs-functions.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Razor 中的 @helper 与 @functions：从 Web Pages 到 ASP.NET Core Tag Helper">
+    <meta property="og:description" content="Razor 中 @helper 与 @functions 的区别：使用场景、返回值、ASP.NET Core Tag Helper 的现代替代方案。">
+    <meta property="og:url" content="https://fanqinglin.com/csharp/razor-helper-vs-functions.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Razor 中的 @helper 与 @functions：从 Web Pages 到 ASP.NET Core Tag Helper">
+    <meta name="twitter:description" content="Razor 中 @helper 与 @functions 的区别：使用场景、返回值、ASP.NET Core Tag Helper 的现代替代方案。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/csharp/razor-helper-vs-functions.html",
+        "description": "Razor 中 @helper 与 @functions 的区别：使用场景、返回值、ASP.NET Core Tag Helper 的现代替代方案。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#helper">@helper 用法</a><a href="#functions">@functions 用法</a><a href="#compare">对比</a><a href="#modern">现代替代</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / C# / .NET / Razor</div>
+                <span class="article-kicker">C# · Razor</span>
+                <h1>Razor 中的 @helper 与 @functions：从 Web Pages 到 ASP.NET Core Tag Helper</h1>
+                <p class="article-deck">两种在视图里写 C# 的方式：什么时候用哪个；为什么 ASP.NET Core 时代基本不再需要它们。</p>
+                <div class="article-meta">
+                    <span>Razor</span>
+                    <span>ASP.NET Core</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="helper">@helper：返回 HTML 片段</h2>
+                <p><code>@helper</code> 用来输出 HTML 片段，本质返回 <code>HelperResult</code>。调用方式与普通 C# 方法一致：</p>
+                <pre><code>@helper WelcomeMessage(string username)
+{
+    &lt;p&gt;Welcome, @username.&lt;/p&gt;
+}
+
+@WelcomeMessage("Alice")</code></pre>
+                <p>特征：</p>
+                <ul>
+                    <li>方法体内可以直接写 Razor / HTML</li>
+                    <li>返回类型<strong>只能是</strong> <code>HelperResult</code>，没有别的选择</li>
+                    <li>常用于把一段重复 HTML 抽成可复用片段</li>
+                </ul>
+                <div class="article-note"><code>@helper</code> 是 <strong>ASP.NET Web Pages</strong> 的特性；MVC 视图里能用但并不常见，<code>PartialView</code> / <code>ViewComponent</code> 才是更标准的复用方式。</div>
+
+                <h2 id="functions">@functions：写普通 C#</h2>
+                <p><code>@functions</code> 块里写普通 C# 方法：</p>
+                <pre><code>@functions {
+    public string GetSomeString()
+    {
+        return string.Empty;
+    }
+
+    public static HtmlString WelcomeMessage(string username)
+    {
+        return new HtmlString($"&lt;p&gt;Welcome, {username}.&lt;/p&gt;");
+    }
+}</code></pre>
+                <p>特征：</p>
+                <ul>
+                    <li>适合纯计算 / 业务逻辑，不渲染 HTML</li>
+                    <li>如果要返回 HTML，<strong>必须</strong>显式返回 <code>HtmlString</code>（不能是 <code>string</code>，否则会被 HTML 转义）</li>
+                    <li><code>using System.Web.Mvc;</code> 在 MVC 5 之前需要；在 ASP.NET Core 下是 <code>Microsoft.AspNetCore.Html.HtmlString</code></li>
+                </ul>
+
+                <h2 id="compare">对比</h2>
+                <table>
+                    <thead><tr><th></th><th>@helper</th><th>@functions</th></tr></thead>
+                    <tbody>
+                        <tr><td>是否必须渲染 HTML</td><td>是</td><td>否</td></tr>
+                        <tr><td>返回类型</td><td>固定 <code>HelperResult</code></td><td>任意</td></tr>
+                        <tr><td>适合的场景</td><td>复用 HTML 片段</td><td>复用纯逻辑</td></tr>
+                        <tr><td>现代替代</td><td>Partial View / View Component / Tag Helper</td><td>服务类 + 依赖注入</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="modern">现代替代：ASP.NET Core 怎么做</h2>
+                <p>在 ASP.NET Core 中，把"渲染 HTML 片段"和"写业务方法"两件事都拆出去，不再放在视图里：</p>
+
+                <h3>复用 HTML：Partial View / View Component / Tag Helper</h3>
+                <p>HTML 片段的复用：</p>
+                <pre><code>// Views/Shared/_Greeting.cshtml
+@model string
+&lt;p&gt;Welcome, @Model.&lt;/p&gt;
+
+@* 调用方式 *@
+@await Html.PartialAsync("_Greeting", "Alice")
+@* 或 *@
+&lt;partial name="_Greeting" model="Alice" /&gt;</code></pre>
+                <p>带逻辑的可复用块用 View Component：</p>
+                <pre><code>// Components/CartSummaryViewComponent.cs
+public class CartSummaryViewComponent : ViewComponent
+{
+    private readonly ICartService _cart;
+    public CartSummaryViewComponent(ICartService cart) =&gt; _cart = cart;
+    public IViewComponentResult Invoke() =&gt; View(_cart.Current());
+}
+
+// Views/Shared/Components/CartSummary/Default.cshtml
+@model Cart
+&lt;div&gt;共 @Model.Items.Count 件商品&lt;/div&gt;
+
+// 调用
+@await Component.InvokeAsync("CartSummary")</code></pre>
+                <p>需要自定义标签就用 Tag Helper：</p>
+                <pre><code>[HtmlTargetElement("greeting")]
+public class GreetingTagHelper : TagHelper
+{
+    public string For { get; set; } = "";
+    public override void Process(TagHelperContext ctx, TagHelperOutput output)
+    {
+        output.TagName = "p";
+        output.Content.SetContent($"Welcome, {For}.");
+    }
+}
+
+// 视图
+&lt;greeting for="Alice" /&gt;</code></pre>
+
+                <h3>复用逻辑：服务类 + DI</h3>
+                <p>不要在视图里写业务方法。提到服务类中：</p>
+                <pre><code>public interface IGreetingFormatter
+{
+    string Format(string name);
+}
+public class GreetingFormatter : IGreetingFormatter
+{
+    public string Format(string name) =&gt; $"Welcome, {name}.";
+}
+
+// 在控制器中注入
+public class HomeController(IGreetingFormatter fmt) : Controller
+{
+    public IActionResult Index() =&gt; View(model: fmt.Format("Alice"));
+}</code></pre>
+                <p>视图只负责渲染，所有"逻辑"都通过 <code>@inject</code> 拿到的服务或者模型本身来完成：</p>
+                <pre><code>@inject IGreetingFormatter Greeting
+&lt;p&gt;@Greeting.Format("Alice")&lt;/p&gt;</code></pre>
+
+                <h2 id="migration">从老项目迁移时的取舍</h2>
+                <ul>
+                    <li><code>@helper WelcomeMessage(name)</code> → Partial View <code>_Greeting.cshtml</code></li>
+                    <li><code>@functions { HtmlString Foo() }</code> → 抽到 service 类，<code>@inject</code> 或通过模型传入</li>
+                    <li>需要修改多个视图的统一逻辑 → Tag Helper</li>
+                    <li>重业务、可单元测试的代码 → View Component 或 Controller 行为</li>
+                </ul>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li><code>@helper</code> / <code>@functions</code> 只能出现在 <code>.cshtml</code>，单元测试困难，能不用就不用。</li>
+                    <li>ASP.NET Core 项目里，HTML 复用首选 <code>&lt;partial&gt;</code> + View Component；业务逻辑用服务类 + DI。</li>
+                    <li>维护老 MVC 5 项目时，<code>@helper</code> 仅用于纯 HTML 片段；纯逻辑请用 <code>@functions</code> 或抽到 Helper 类。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/mvc/views/partial" target="_blank" rel="noopener noreferrer">ASP.NET Core Partial Views</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/mvc/views/view-components" target="_blank" rel="noopener noreferrer">View Components</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/mvc/views/tag-helpers/authoring" target="_blank" rel="noopener noreferrer">Authoring Tag Helpers</a></li>
+                        <li><a href="https://stackoverflow.com/questions/48681429/razor-function-what-is-the-difference-between-helper-and-functions" target="_blank" rel="noopener noreferrer">StackOverflow: @helper vs @functions</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#helper">@helper</a>
+            <a href="#functions">@functions</a>
+            <a href="#compare">对比</a>
+            <a href="#modern">现代替代</a>
+            <a href="#migration">迁移</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

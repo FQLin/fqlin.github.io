@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PKI CSR 格式与 certificate vs license（下篇）：Base64 字节流、CyberChef、扩展字段、授权与证书｜范庆林的技术博客</title>
+    <meta name="description" content="PKI 下篇：CSR 文件为什么是 PEM(Base64) 又显示成二进制 hex、CyberChef 怎么解析、CSR 的 Requested Extensions 自定义字段、certificate 与 license 的本质区别。">
+    <meta name="keywords" content="PKI,CSR,Base64,PEM,CyberChef,certificate,license,证书">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/security/pki-csr-format-license.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="PKI CSR 格式与 certificate vs license（下篇）：Base64 字节流、CyberChef、扩展字段、授权与证书">
+    <meta property="og:description" content="PKI 下篇：CSR 文件为什么是 PEM(Base64) 又显示成二进制 hex、CyberChef 怎么解析、CSR 的 Requested Extensions 自定义字段、certificate 与 license 的本质区别。">
+    <meta property="og:url" content="https://fanqinglin.com/security/pki-csr-format-license.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="PKI CSR 格式与 certificate vs license（下篇）：Base64 字节流、CyberChef、扩展字段、授权与证书">
+    <meta name="twitter:description" content="PKI 下篇：CSR 文件为什么是 PEM(Base64) 又显示成二进制 hex、CyberChef 怎么解析、CSR 的 Requested Extensions 自定义字段、certificate 与 license 的本质区别。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/security/pki-csr-format-license.html",
+        "description": "PKI 下篇：CSR 文件为什么是 PEM(Base64) 又显示成二进制 hex、CyberChef 怎么解析、CSR 的 Requested Extensions 自定义字段、certificate 与 license 的本质区别。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#encoding">编码结构</a><a href="#cyberchef">CyberChef 解析</a><a href="#pubkey-hex">公钥 hex</a><a href="#extensions">CSR 扩展字段</a><a href="#cert-vs-lic">cert vs license</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / 安全 / PKI</div>
+                <span class="article-kicker">Security · PKI · CSR 实战</span>
+                <h1>PKI CSR 格式与 certificate vs license（下篇）</h1>
+                <p class="article-deck">解决三个常见误解：CSR 里 Base64 是文本还是二进制、CyberChef 为什么"乱码"、公钥 hex 是什么；以及 certificate 与 license 的本质区别。</p>
+                <div class="article-meta">
+                    <span>PKI 下篇</span>
+                    <span>CSR / CyberChef / X.509 扩展</span>
+                    <span>2026-08-13 发布</span>
+                    <span>下篇（共 3 篇）</span>
+                </div>
+                <div class="article-version">
+                    <strong>本文版本：</strong>PKI 三篇之下篇：CSR 文件三层结构（PEM → Base64 → DER）、CyberChef 解析方法、CSR Requested Extensions 字段含义、certificate 与 license 区分。
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="encoding">CSR 内容是 Base64 吗</h2>
+                <p>CSR（PEM 格式）里的内容确实是 Base64 编码的，但：</p>
+                <blockquote>它 Base64 解码后得到的是 <strong>DER 二进制 ASN.1 结构</strong>，而不是 JSON、文本、明文数据。</blockquote>
+                <p>CyberChef 的 "From Base64" 只是解码成原始二进制，你看到的输出是乱码是<strong>正常现象</strong>。</p>
+
+                <h3>CSR 的 PEM → Base64 → DER 三层结构</h3>
+                <p>CSR 文件（PEM）：</p>
+                <pre><code>-----BEGIN CERTIFICATE REQUEST-----
+MIIBSTCB7wIBADA...
+-----END CERTIFICATE REQUEST-----</code></pre>
+                <p>里面的 Base64 实际对应 <strong>DER (ASN.1 数据结构)</strong> → 二进制。</p>
+                <p>你可以这样理解：</p>
+                <pre><code>PEM = Base64(DER)</code></pre>
+
+                <h2 id="cyberchef">CyberChef 正确解析 CSR 的方法</h2>
+                <p>在 CyberChef 里：</p>
+                <ol>
+                    <li>第一步：<strong>From Base64</strong></li>
+                    <li>第二步：<strong>Parse ASN.1 Structure</strong></li>
+                </ol>
+                <p>例如流程：</p>
+                <pre><code>From Base64 → Parse ASN.1</code></pre>
+                <p>你就能看到人类可读的结构化内容。</p>
+                <h3>OpenSSL 标准方式</h3>
+                <pre><code class="language-bash">openssl req -in your.csr -noout -text</code></pre>
+                <p>你会看到：</p>
+                <ul>
+                    <li>Subject</li>
+                    <li>SAN</li>
+                    <li>Public Key</li>
+                    <li>Signature Algorithm</li>
+                    <li>Signature</li>
+                </ul>
+                <p>这是唯一正确的查看方式。</p>
+
+                <h2 id="pubkey-hex">公钥为什么显示成 04:58:9a:9c 这样的 hex</h2>
+                <p>常见的 OpenSSL 输出：</p>
+                <pre><code>Pub:    04:58:9a:9c:c7:8c:af:6a:9e:a4:bd:d6:d1:db:5b:06:
+       48:08:ac:34:51:4d:54:c5:6f:6b:e9:b1:62:0d:7c:e3:
+       4e:d7:ab:15:48:9d:29:eb:4d:ca:1d:34:d6:a3:54:cd:
+       13:f8:ea:33:cc:4d:a4:2b:05:a4:c7:27:03:9e:8a:2b:
+       d5</code></pre>
+
+                <h3>为什么不是字符串</h3>
+                <p>看到的公钥是：</p>
+                <ul>
+                    <li>椭圆曲线点坐标（二进制）</li>
+                    <li>被 OpenSSL 以十六进制 Hex Dump 形式打印</li>
+                </ul>
+                <p>不是字符串，因为公钥本来就是一段「数学数据」，不可读，不是字符编码，原始形式是 <code>byte[]</code>（原始二进制）。</p>
+
+                <h3>为什么是这种格式</h3>
+                <p>你使用的是 <strong>ECDSA / EC 密钥（椭圆曲线密钥）</strong>。</p>
+                <p>椭圆曲线公钥格式固定为：</p>
+                <pre><code>0x04 || X 坐标 || Y 坐标</code></pre>
+                <ul>
+                    <li><code>0x04</code> 表示"非压缩公钥"</li>
+                    <li>后面是 X、Y 坐标，每个约 32 bytes（取决于曲线，P-256 就是 32+32）</li>
+                </ul>
+                <p>为什么 OpenSSL 用十六进制显示？</p>
+                <p>OpenSSL 默认把二进制数据以 hexdump 格式打印，更方便人类阅读。但这些都是二进制字节的十六进制表示，不是字符串。</p>
+
+                <h3>字符串形式：PEM</h3>
+                <p>如果想看"字符串形式的公钥"，应该用 PEM 格式：</p>
+                <pre><code>-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQ...
+-----END PUBLIC KEY-----</code></pre>
+                <p>但这里的 PEM 本质上仍然是 <code>Base64(ASN.1)</code> 的文本包装。里面真正的内容仍然是二进制结构（DER）。</p>
+
+                <h3>用 hex 校验曲线</h3>
+                <pre><code class="language-bash">openssl ec -in key.pem -pubout -text</code></pre>
+                <p>或：</p>
+                <pre><code class="language-bash">openssl req -in your.csr -noout -text</code></pre>
+                <p>它会显示同样的十六进制点坐标。</p>
+
+                <h2 id="hexdump">为什么 OpenSSL 输出 CyberChef 不识别</h2>
+                <p>常见误解：OpenSSL 输出的 `04:58:9a:9c:...` 怎么用 CyberChef "From Hexdump" 没输出？</p>
+                <p>原因不是 CyberChef 的 bug，而是格式不匹配。</p>
+
+                <h3>OpenSSL 输出不是"hexdump 格式"</h3>
+                <p>OpenSSL 打印的 `04:58:9a:9c:...` 是：</p>
+                <ul>
+                    <li><strong>十六进制 bytes（hex bytes）</strong></li>
+                    <li><strong>不是 hexdump 格式</strong></li>
+                </ul>
+                <p>CyberChef 的 "From Hexdump" 需要的是类似 Linux hexdump 命令那样的格式：</p>
+                <pre><code>00000000  04 58 9a 9c c7 8c ...
+00000010  48 08 ac 34 51 4d ...</code></pre>
+                <p>而 OpenSSL 打印的是简单的：</p>
+                <pre><code>04:58:9a:9c:...</code></pre>
+                <p>这不符合 CyberChef 的预期格式，所以会无法解析 → 输出为空。</p>
+
+                <h3>正确的做法</h3>
+                <p><strong>方法 1：把 <code>:</code> 换成空格，再用 "From Hexdump"</strong></p>
+                <pre><code>04 58 9a 9c c7 8c af 6a 9e a4 bd d6 d1 db 5b 06 48 08 ac...</code></pre>
+                <p>然后 CyberChef 用 <strong>From Hexdump</strong> 或 <strong>From Hex</strong> 都能解码出二进制。</p>
+                <p><strong>方法 2：直接用 "From Hex"</strong></p>
+                <p>最干净：CyberChef "From Hex" 不需要地址偏移与 ASCII 后缀。</p>
+
+                <h2 id="extensions">CSR 的 Requested Extensions 字段</h2>
+                <p>OpenSSL 解析 CSR 时常看到：</p>
+                <pre><code>Requested Extensions:
+    subjectKeyIdentifier:
+        (unsuported extension)
+    1.3.6.1.4.1.13159.1.2.509.3.1.1: critical
+        (unsuported extension)
+    1.3.6.1.4.1.13159.1.2.509.3.2.1: critical
+        (unsuported extension)</code></pre>
+
+                <h3>Requested Extensions 是什么</h3>
+                <p>CSR 里可以指定扩展字段，例如：</p>
+                <ul>
+                    <li><code>subjectAltName</code></li>
+                    <li><code>basicConstraints</code></li>
+                    <li><code>keyUsage</code></li>
+                    <li><code>extendedKeyUsage</code></li>
+                </ul>
+                <p>这些会出现在 CA 签发的证书中。但 `<code>1.3.6.1.4.1.13159.*</code>` 这种不是标准扩展。</p>
+
+                <h3>为什么显示 unsupported</h3>
+                <p>OpenSSL 不认识这些 OID 是什么意思，所以显示：</p>
+                <pre><code>(unsupported extension)</code></pre>
+                <p>并不表示 CSR 有问题，只表示：</p>
+                <ul>
+                    <li>OpenSSL 的本地 OID 表里没有对应的名称和格式描述</li>
+                </ul>
+                <p>CSR 仍然是合法的，CA 也可以处理。</p>
+
+                <h3>OID 是什么</h3>
+                <p>观察结构：</p>
+                <pre><code>1.3.6.1.4.1.xxxxx</code></pre>
+                <p>这是典型的 <strong>Private Enterprise Number (PEN)</strong>——某个公司申请的私有 OID 命名空间。</p>
+                <p>其中的 <code>13159</code> 是某家公司向 IANA 申请的企业编号。意味着这是该公司自定义的 PKI 扩展字段，行业标准不会包含。</p>
+                <p>可去 IANA PEN 数据库查：<a href="https://www.iana.org/assignments/enterprise-numbers/enterprise-numbers" target="_blank" rel="noopener noreferrer">https://www.iana.org/assignments/enterprise-numbers/enterprise-numbers</a></p>
+
+                <h3>为什么标记为 critical</h3>
+                <p>如果 CA 不理解这个扩展，它必须拒绝该 CSR；必须写进证书，不能忽略。这通常出现在专用系统（HSM、智能卡、政府认证设备）生成的 CSR 中。</p>
+                <p>正常公共 CA（DigiCert、GlobalSign、Let's Encrypt）不会处理这些扩展。企业内部 PKI 或国密系统里可能很关键。</p>
+
+                <h2 id="cert-vs-lic">certificate vs license</h2>
+                <p>很多人把 license 和 certificate 混在一起，但二者用途完全不同。</p>
+                <p><strong>一句话结论：</strong></p>
+                <ul>
+                    <li><strong>Certificate（证书）</strong>是「用来证明身份和公钥的密码学凭证」</li>
+                    <li><strong>License（许可证 / 授权）</strong>是「允许你使用某个产品或功能的法律 / 商业授权」</li>
+                </ul>
+
+                <h3>Certificate（证书）</h3>
+                <p>本质：<strong>一个由 CA 签名的、带有公钥的身份凭证</strong>。解决问题：</p>
+                <ul>
+                    <li>你是谁？</li>
+                    <li>这个公钥是谁的？</li>
+                    <li>我能不能信任你？</li>
+                </ul>
+                <p>核心：<strong>密码学信任</strong>。常见使用：HTTPS / TLS、客户端认证（mTLS）、代码签名、设备身份认证、VPN、S/MIME。</p>
+
+                <h3>License（许可证 / 授权）</h3>
+                <p>本质：<strong>对"使用权"的授权声明，不是身份凭证</strong>。解决问题：</p>
+                <ul>
+                    <li>你是否有权使用这个软件 / 功能？</li>
+                    <li>可以用到什么程度？</li>
+                    <li>用多久？</li>
+                </ul>
+                <p>核心：<strong>法律 + 商业授权</strong>。常见使用：商业软件授权（Oracle、VMware、Autodesk）、SaaS 付费许可、设备功能解锁、操作系统激活。</p>
+
+                <h3>核心区别对照</h3>
+                <table>
+                    <thead><tr><th>对比项</th><th>Certificate（证书）</th><th>License（许可证）</th></tr></thead>
+                    <tbody>
+                        <tr><td>本质</td><td>密码学凭证</td><td>使用授权</td></tr>
+                        <tr><td>解决问题</td><td>「你是谁 / 我信你吗」</td><td>「你能不能用 / 用多少」</td></tr>
+                        <tr><td>是否涉及公钥</td><td>一定包含</td><td>一般不涉及</td></tr>
+                        <tr><td>是否需要 CA</td><td>需要（或自签）</td><td>不需要</td></tr>
+                        <tr><td>是否参与加密</td><td>会</td><td>不会</td></tr>
+                        <tr><td>是否有法律效力</td><td>间接（身份）</td><td>直接（合同/授权）</td></tr>
+                        <tr><td>技术标准</td><td>X.509 / PKI</td><td>各厂商私有</td></tr>
+                        <tr><td>常见文件</td><td><code>.crt .cer .pem</code></td><td><code>.lic .license .dat</code></td></tr>
+                    </tbody>
+                </table>
+
+                <h3>为什么一起出现</h3>
+                <p>在很多商业系统里：</p>
+                <ul>
+                    <li><strong>certificate 用来做"身份认证"</strong></li>
+                    <li><strong>license 用来做"功能授权"</strong></li>
+                </ul>
+                <p>典型：企业 VPN 设备用证书确认合法设备 / 用户，用 license 限制并发数。它们是<strong>配合关系</strong>，不是替代关系。</p>
+
+                <h3>工程师版类比</h3>
+                <table>
+                    <thead><tr><th>现实世界</th><th>PKI / IT 世界</th></tr></thead>
+                    <tbody>
+                        <tr><td>身份证 / 护照</td><td>Certificate</td></tr>
+                        <tr><td>驾驶证</td><td>Certificate（某种用途）</td></tr>
+                        <tr><td>软件购买合同</td><td>License</td></tr>
+                        <tr><td>游戏 DLC 授权</td><td>License</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>certificate = 你是谁</strong><br><strong>license = 你能干什么</strong></p>
+
+                <h2 id="principles">下篇准则</h2>
+                <ol>
+                    <li><strong>PEM = Base64(DER)</strong>——PEM 是文本，DER 是二进制结构。</li>
+                    <li><strong>CyberChef "From Base64 → Parse ASN.1"</strong>——最干净查看 CSR 内部结构的方式。</li>
+                    <li><strong>OpenSSL 的 hex 输出 ≠ CyberChef 的 hexdump</strong>——把 <code>:</code> 换空格即可。</li>
+                    <li><strong>公钥不是字符串</strong>——它是数学点坐标（X, Y）的二进制形式。</li>
+                    <li><strong>CSR Requested Extensions 中的 unsupported</strong>——OpenSSL 不认识，不是 CSR 错。</li>
+                    <li><strong>certificate ≠ license</strong>——身份 vs 授权。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://gchq.github.io/CyberChef/" target="_blank" rel="noopener noreferrer">CyberChef 官方站</a></li>
+                        <li><a href="https://datatracker.ietf.org/doc/html/rfc7468" target="_blank" rel="noopener noreferrer">RFC 7468: PEM 文本编码</a></li>
+                        <li><a href="https://www.itu.int/rec/REC-X.509/" target="_blank" rel="noopener noreferrer">X.509 ITU 标准</a></li>
+                        <li><a href="https://www.iana.org/assignments/enterprise-numbers/enterprise-numbers" target="_blank" rel="noopener noreferrer">IANA PEN 数据库</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#encoding">CSR 三层结构</a>
+            <a href="#cyberchef">CyberChef 解析</a>
+            <a href="#pubkey-hex">公钥 hex</a>
+            <a href="#hexdump">hexdump 格式</a>
+            <a href="#extensions">CSR 扩展字段</a>
+            <a href="#cert-vs-lic">cert vs license</a>
+            <a href="#principles">准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

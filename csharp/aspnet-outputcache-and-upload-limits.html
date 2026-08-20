@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ASP.NET MVC OutputCache 与 web.config 文件上传限制的现代化：从 .NET Framework 到 ASP.NET Core｜范庆林的技术博客</title>
+    <meta name="description" content="从 ASP.NET MVC 5 的 OutputCache 与 web.config 文件上传限制，到 ASP.NET Core 8 的 ResponseCaching/IDistributedCache + Kestrel/FormOptions 反代三层方案。">
+    <meta name="keywords" content="ASP.NET,MVC,OutputCache,文件上传,.NET Core,ResponseCaching,Kestrel">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/csharp/aspnet-outputcache-and-upload-limits.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="ASP.NET MVC OutputCache 与 web.config 文件上传限制的现代化：从 .NET Framework 到 ASP.NET Core">
+    <meta property="og:description" content="从 ASP.NET MVC 5 的 OutputCache 与 web.config 文件上传限制，到 ASP.NET Core 8 的 ResponseCaching/IDistributedCache + Kestrel/FormOptions 反代三层方案。">
+    <meta property="og:url" content="https://fanqinglin.com/csharp/aspnet-outputcache-and-upload-limits.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="ASP.NET MVC OutputCache 与 web.config 文件上传限制的现代化：从 .NET Framework 到 ASP.NET Core">
+    <meta name="twitter:description" content="从 ASP.NET MVC 5 的 OutputCache 与 web.config 文件上传限制，到 ASP.NET Core 8 的 ResponseCaching/IDistributedCache + Kestrel/FormOptions 反代三层方案。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/csharp/aspnet-outputcache-and-upload-limits.html",
+        "description": "从 ASP.NET MVC 5 的 OutputCache 与 web.config 文件上传限制，到 ASP.NET Core 8 的 ResponseCaching/IDistributedCache + Kestrel/FormOptions 反代三层方案。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#orig">老配置</a><a href="#core8">ASP.NET Core 8 替代</a><a href="#upload">大文件上传</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / C# / .NET / ASP.NET</div>
+                <span class="article-kicker">C# · ASP.NET MVC 5 → ASP.NET Core 8</span>
+                <h1>ASP.NET MVC OutputCache 与 web.config 文件上传限制的现代化</h1>
+                <p class="article-deck">把 .NET Framework 时代的两个高频配置问题（页面级输出缓存 + 上传大小限制）映射到 ASP.NET Core 8 的现代方案。</p>
+                <div class="article-meta">
+                    <span>原文 ASP.NET MVC 5</span>
+                    <span>目标 ASP.NET Core 8</span>
+                    <span>2026-08-11 发布</span>
+                </div>
+                <div class="article-version">
+                    <strong>版本声明：</strong>原文基于 ASP.NET MVC 5 / .NET Framework 4.x（<code>System.Web.Caching.OutputCache</code>、<code>web.config</code>）。
+                    ASP.NET Core 8 已移除这些机制，需要组合 ResponseCaching / IDistributedCache + Kestrel/FormOptions/反向代理三层方案。
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="orig">老代码（ASP.NET MVC 5 / .NET Framework 4.x）</h2>
+
+                <h3>1. 页面级 OutputCache</h3>
+                <pre><code class="language-csharp">[OutputCache(Duration = 10, VaryByParam = "none")]
+public ActionResult Index() { ... }
+
+// 或在 web.config 集中配置
+// &lt;caching&gt;
+//   &lt;outputCacheProfiles&gt;
+//     &lt;add name="sample" duration="3600" varyByParam="none" /&gt;
+//   &lt;/outputCacheProfiles&gt;
+// &lt;/caching&gt;
+[OutputCache(CacheProfile = "sample")]
+public ActionResult List() { ... }</code></pre>
+                <p>局限：必须用 <code>/home/index</code> 这种 query string 形式，纯 <code>/home</code> 不会缓存。</p>
+
+                <h3>2. web.config 文件上传限制</h3>
+                <pre><code class="language-xml">&lt;system.web&gt;
+  &lt;httpRuntime targetFramework="4.5"
+               maxRequestLength="2147483647"
+               executionTimeout="36000" /&gt;
+&lt;/system.web&gt;</code></pre>
+                <p>含义：上传单文件最长约 2 GB（<code>maxRequestLength</code> 单位 KB），执行超时 10 小时。</p>
+
+                <div class="article-warning">
+                    <strong>双重隐患：</strong>
+                    1. ASP.NET Core 已不再用 <code>web.config</code> 配置运行时行为，需要移到 <code>appsettings.json</code> + Kestrel 配置。
+                    2. <code>maxRequestLength="2147483647"</code> 看似无上限，实际会先撞到 IIS 的 <code>maxAllowedContentLength</code>（默认 30 MB），返回 404.13。
+                </div>
+
+                <h2 id="core8">ASP.NET Core 8 替代方案</h2>
+
+                <h3>3. ResponseCaching 替代 OutputCache（响应级缓存）</h3>
+                <pre><code class="language-csharp">// Program.cs
+builder.Services.AddResponseCaching(options =>
+{
+    options.MaximumBodySize = 64 * 1024 * 1024;  // 64 MB，可缓存的最大响应体
+    options.SizeLimit = 256 * 1024 * 1024;       // 缓存池总大小
+    options.UseCaseSensitivePaths = false;
+});
+
+// 控制器上
+[ResponseCache(Duration = 60, VaryByHeader = "User-Agent")]
+public IActionResult Index() { ... }</code></pre>
+                <p>特点：</p>
+                <ul>
+                    <li>遵循 HTTP 标准的 <code>Cache-Control</code> 头，浏览器、CDN、反代都能识别。</li>
+                    <li>需要 <code>app.UseResponseCaching()</code> 中间件介入。</li>
+                    <li>默认仅缓存 <code>GET</code> + <code>200</code> + 有 <code>Cache-Control: public</code> 的响应。</li>
+                </ul>
+
+                <h3>4. IDistributedCache 替代 OutputCache（共享缓存）</h3>
+                <p>需要多实例共享时，用 Redis / SQL Server：</p>
+                <pre><code class="language-csharp">// 1. 注册
+builder.Services.AddStackExchangeRedisCache(opts =>
+{
+    opts.Configuration = builder.Configuration["Redis:ConnectionString"];
+    opts.InstanceName = "MyApp:";
+});
+
+// 2. 用 IDistributedCache
+public class ProductService(IDistributedCache cache)
+{
+    public async Task&lt;List&lt;Product&gt;&gt; GetHotListAsync(CancellationToken ct)
+    {
+        const string key = "products:hot";
+        var cached = await cache.GetAsync(key, ct);
+        if (cached is { Length: &gt; 0 })
+            return JsonSerializer.Deserialize&lt;List&lt;Product&gt;&gt;(cached)!;
+
+        var fresh = await LoadFromDbAsync(ct);
+        await cache.SetAsync(key,
+            JsonSerializer.SerializeToUtf8Bytes(fresh),
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) },
+            ct);
+        return fresh;
+    }
+}</code></pre>
+
+                <h2 id="upload">大文件上传三层方案</h2>
+                <p>ASP.NET Core 大文件上传必须三层同步调，否则只改一处没用：</p>
+
+                <h3>第一层：Kestrel（应用服务器）</h3>
+                <pre><code class="language-csharp">builder.WebHost.ConfigureKestrel(options =&gt;
+{
+    options.Limits.MaxRequestBodySize = 500L * 1024 * 1024;  // 500 MB
+});</code></pre>
+
+                <h3>第二层：IFormOptions（表单解析）</h3>
+                <pre><code class="language-csharp">builder.Services.Configure&lt;FormOptions&gt;(options =&gt;
+{
+    options.MultipartBodyLengthLimit = 500L * 1024 * 1024;
+    options.ValueLengthLimit = 1024 * 1024;
+});</code></pre>
+
+                <h3>第三层：反向代理（IIS / Nginx）</h3>
+                <p>Nginx：</p>
+                <pre><code class="language-nginx">client_max_body_size 500M;</code></pre>
+                <p>IIS：</p>
+                <pre><code class="language-xml">&lt;system.webServer&gt;
+  &lt;security&gt;
+    <requestFiltering&gt;
+      &lt;requestLimits maxAllowedContentLength="524288000" /&gt;
+    &lt;/requestFiltering&gt;
+  &lt;/security&gt;
+&lt;/system.webServer&gt;</code></pre>
+
+                <h3>Action 级临时覆盖</h3>
+                <pre><code class="language-csharp">[HttpPost]
+[RequestSizeLimit(500L * 1024 * 1024)]
+[RequestFormLimits(MultipartBodyLengthLimit = 500L * 1024 * 1024)]
+public async Task&lt;IActionResult&gt; Upload(IFormFile file) { ... }</code></pre>
+
+                <h3>错误码对照</h3>
+                <table>
+                    <thead><tr><th>现象</th><th>原因</th><th>检查</th></tr></thead>
+                    <tbody>
+                        <tr><td>请求体被 Kestrel 拒绝</td><td>MaxRequestBodySize 超限</td><td>看 Kestrel 日志</td></tr>
+                        <tr><td>请求体被 Form 解析拒绝</td><td>MultipartBodyLengthLimit 超限</td><td>看异常类型 InvalidDataException</td></tr>
+                        <tr><td>Nginx 返回 413</td><td>client_max_body_size</td><td>看 Nginx access.log</td></tr>
+                        <tr><td>IIS 返回 404.13</td><td>maxAllowedContentLength</td><td>前端 body size / 4 KB</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="compare">完整对照表</h2>
+                <table>
+                    <thead><tr><th>.NET Framework 4.x</th><th>ASP.NET Core 8</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>[OutputCache]</code> 特性</td><td><code>[ResponseCache]</code> 特性 + <code>AddResponseCaching</code></td></tr>
+                        <tr><td>web.config <caching> 节点</td><td>无全局配置，按 Action 装饰</td></tr>
+                        <tr><td>HttpRuntime 静态缓存</td><td>IMemoryCache / IDistributedCache</td></tr>
+                        <tr><td>OutputCache 依赖 System.Web</td><td>不依赖，纯中间件</td></tr>
+                        <tr><td><code>web.config</code> &lt;httpRuntime maxRequestLength&gt;</td><td>3 处：Kestrel MaxRequestBodySize / FormOptions MultipartBodyLengthLimit / 反代</td></tr>
+                        <tr><td>IIS 默认 30 MB 上限</td><td>Kestrel 默认 30 MB（仍受 IIS / Nginx 限制）</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>OutputCache / ResponseCache 只缓存"可公开 + 无副作用"响应。用户登录后的页面、CSRF token 等一律不缓存。</li>
+                    <li>大文件上传永远三层都改——只改 Kestrel 不改 Nginx 一样失败。</li>
+                    <li>不缓存 GET 之外的方法：POST / PUT / DELETE 都不安全。</li>
+                    <li><code>VaryByHeader</code> 比 <code>VaryByParam</code> 更精细——按 User-Agent / Accept-Language 区分更合理。</li>
+                    <li>上传文件大小不是越大越好——大文件吃内存，吃 GC，建议分片上传（tus / ng-file-upload）。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/performance/caching/response" target="_blank" rel="noopener noreferrer">ASP.NET Core Response Caching</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/performance/caching/distributed" target="_blank" rel="noopener noreferrer">ASP.NET Core Distributed Caching</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/mvc/models/file-uploads" target="_blank" rel="noopener noreferrer">ASP.NET Core File Uploads</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/fundamentals/servers/kestrel/options" target="_blank" rel="noopener noreferrer">Kestrel Options</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#orig">老配置</a>
+            <a href="#core8">ASP.NET Core 8 替代</a>
+            <a href="#upload">大文件上传</a>
+            <a href="#compare">完整对照表</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

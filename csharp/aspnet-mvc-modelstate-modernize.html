@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ASP.NET MVC ModelState 扩展的现代化：从 .NET Framework 到 ASP.NET Core｜范庆林的技术博客</title>
+    <meta name="description" content="从 ASP.NET MVC 5 的 ModelStateDictionary 扩展方法，到 ASP.NET Core 8 的 ModelStateDictionary 现代化写法，以及 FluentValidation / DataAnnotations 等现代替代方案。">
+    <meta name="keywords" content="ASP.NET,MVC,ModelState,FluentValidation,DataAnnotations,.NET Core">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/csharp/aspnet-mvc-modelstate-modernize.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="ASP.NET MVC ModelState 扩展的现代化：从 .NET Framework 到 ASP.NET Core">
+    <meta property="og:description" content="从 ASP.NET MVC 5 的 ModelStateDictionary 扩展方法，到 ASP.NET Core 8 的 ModelStateDictionary 现代化写法，以及 FluentValidation / DataAnnotations 等现代替代方案。">
+    <meta property="og:url" content="https://fanqinglin.com/csharp/aspnet-mvc-modelstate-modernize.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="ASP.NET MVC ModelState 扩展的现代化：从 .NET Framework 到 ASP.NET Core">
+    <meta name="twitter:description" content="从 ASP.NET MVC 5 的 ModelStateDictionary 扩展方法，到 ASP.NET Core 8 的 ModelStateDictionary 现代化写法，以及 FluentValidation / DataAnnotations 等现代替代方案。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/csharp/aspnet-mvc-modelstate-modernize.html",
+        "description": "从 ASP.NET MVC 5 的 ModelStateDictionary 扩展方法，到 ASP.NET Core 8 的 ModelStateDictionary 现代化写法，以及 FluentValidation / DataAnnotations 等现代替代方案。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#orig">老代码</a><a href="#net8">ASP.NET Core 8 写法</a><a href="#alt">现代替代</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / C# / .NET / ASP.NET</div>
+                <span class="article-kicker">C# · ASP.NET MVC 5 → ASP.NET Core 8</span>
+                <h1>ASP.NET MVC ModelState 扩展的现代化：从 .NET Framework 到 ASP.NET Core</h1>
+                <p class="article-deck">一段 12 行的 `.GetErrorMessage()` 扩展方法，从 .NET Framework 时代活到 ASP.NET Core 8；本文给出迁移版本与现代替代方案。</p>
+                <div class="article-meta">
+                    <span>原文 ASP.NET MVC 5</span>
+                    <span>目标 ASP.NET Core 8</span>
+                    <span>2026-08-11 发布</span>
+                </div>
+                <div class="article-version">
+                    <strong>版本声明：</strong>原文针对 .NET Framework 4.x（System.Web.Mvc.ModelStateDictionary）。
+                    ASP.NET Core 的 <code>Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary</code> 保持同名 API，<br>
+                    但语义与依赖有差异；本文给出直接迁移与现代替代两条路线。
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="orig">原始代码（ASP.NET MVC 5 / .NET Framework 4.x）</h2>
+                <pre><code class="language-csharp">// 引用：System.Web.Mvc
+public static class ModelStateExtension
+{
+    public static string GetErrorMessage(this ModelStateDictionary msDictionary)
+    {
+        if (msDictionary.IsValid || !msDictionary.Any()) return "";
+        foreach (string key in msDictionary.Keys)
+        {
+            ModelState tempModelState = msDictionary[key];
+            if (tempModelState.Errors.Any())
+            {
+                var firstOrDefault = tempModelState.Errors.FirstOrDefault();
+                if (firstOrDefault != null)
+                    return firstOrDefault.ErrorMessage;
+            }
+        }
+        return "";
+    }
+}</code></pre>
+                <p>用起来像：</p>
+                <pre><code class="language-csharp">if (!ModelState.IsValid)
+{
+    var msg = ModelState.GetErrorMessage();
+    return Content(msg);
+}</code></pre>
+                <div class="article-warning">
+                    <strong>同名陷阱：</strong>ASP.NET Core 里 <code>ModelStateDictionary</code> 类名保留，但命名空间是
+                    <code>Microsoft.AspNetCore.Mvc.ModelBinding</code>，且 <code>ModelState</code>（单词）的实现细节有差异——
+                    例如不再暴露 <code>Errors</code> 属性，而是 <code>Errors</code> 集合通过 <code>ModelStateEntry.Errors</code> 访问。
+                </div>
+
+                <h2 id="net8">直接迁移到 ASP.NET Core 8</h2>
+                <p>如果你的项目只是把旧代码搬过来用，最小改动版：</p>
+                <pre><code class="language-csharp">using Microsoft.AspNetCore.Mvc.ModelBinding;
+
+public static class ModelStateExtension
+{
+    public static string GetErrorMessage(this ModelStateDictionary msDictionary)
+    {
+        if (msDictionary.IsValid || msDictionary.Count == 0) return "";
+
+        foreach (var entry in msDictionary)
+        {
+            if (entry.Value?.Errors.Count > 0)
+            {
+                var firstError = entry.Value.Errors.FirstOrDefault();
+                if (firstError != null)
+                    return firstError.ErrorMessage;
+            }
+        }
+        return "";
+    }
+}</code></pre>
+                <p>差异点：</p>
+                <ul>
+                    <li><code>Keys</code> → 直接迭代 <code>ModelStateDictionary</code> 本身（实现 <code>IEnumerable&lt;KeyValuePair&lt;string, ModelStateEntry&gt;&gt;</code>）。</li>
+                    <li><code>msDictionary[key]</code> → <code>entry.Value</code>（<code>ModelStateEntry</code>，不再叫 <code>ModelState</code>）。</li>
+                    <li><code>Errors</code> 仍是集合，<code>ErrorMessage</code> 仍在。</li>
+                </ul>
+
+                <h2 id="alt">现代替代方案</h2>
+
+                <h3>替代 1：直接遍历，封装为 ASP.NET Core 过滤器</h3>
+                <p>ASP.NET Core 通常配合全局异常过滤器与 ProblemDetails 使用。返回首个错误：</p>
+                <pre><code class="language-csharp">// Program.cs
+builder.Services.AddProblemDetails();
+
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var firstError = context.ModelState
+                .Where(kv =&gt; kv.Value?.Errors.Count > 0)
+                .Select(kv =&gt; kv.Value!.Errors.First().ErrorMessage)
+                .FirstOrDefault() ?? "参数校验失败";
+
+            return new BadRequestObjectResult(new
+            {
+                type = "https://tools.ietf.org/html/rfc7231#section-6.5.1",
+                title = "Validation failed",
+                status = StatusCodes.Status400BadRequest,
+                detail = firstError
+            });
+        };
+    });</code></pre>
+                <p>注意：<code>context.ModelState</code> 就是 ASP.NET Core 的 <code>ModelStateDictionary</code>，可以直接用上面写的扩展方法。</p>
+
+                <h3>替代 2：FluentValidation（推荐用于复杂业务）</h3>
+                <p>DataAnnotations 在简单场景够用，业务规则复杂时换成 FluentValidation：</p>
+                <pre><code class="language-csharp">// 安装 NuGet 包 FluentValidation.AspNetCore
+public class OrderRequestValidator : AbstractValidator&lt;OrderRequest&gt;
+{
+    public OrderRequestValidator()
+    {
+        RuleFor(x =&gt; x.CustomerName)
+            .NotEmpty().WithMessage("客户名称必填")
+            .MaximumLength(50);
+
+        RuleFor(x =&gt; x.Amount)
+            .GreaterThan(0).WithMessage("金额必须大于 0");
+    }
+}
+
+// Program.cs
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddScoped&lt;IValidator&lt;OrderRequest&gt;, OrderRequestValidator&gt;();</code></pre>
+                <p>优势：规则与模型分离、易单元测试、支持条件分支（<code>When</code> / <code>Unless</code>）。</p>
+
+                <h3>替代 3：MiniValidation（轻量替代）</h3>
+                <p>ASP.NET Core 内置的轻量方案，仅需 DataAnnotations：</p>
+                <pre><code class="language-csharp">// Program.cs
+builder.Services.AddControllersWithViews();
+
+// 在 Controller / Razor Page 里：
+if (!ModelState.IsValid)
+{
+    var errors = ModelState
+        .SelectMany(kv =&gt; kv.Value!.Errors.Select(e =&gt; $"{kv.Key}: {e.ErrorMessage}"))
+        .ToList();
+
+    return BadRequest(new { Errors = errors });
+}</code></pre>
+                <p>适合：没有大型项目、想避免额外 NuGet 依赖。</p>
+
+                <h2 id="migrate">完整迁移清单</h2>
+                <table>
+                    <thead><tr><th>.NET Framework 原代码</th><th>ASP.NET Core 8 迁移</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>using System.Web.Mvc;</code></td><td><code>using Microsoft.AspNetCore.Mvc.ModelBinding;</code></td></tr>
+                        <tr><td><code>ModelStateDictionary.Keys</code></td><td>直接迭代 ModelStateDictionary</td></tr>
+                        <tr><td><code>msDictionary[key]</code> 返回 <code>ModelState</code></td><td>返回 <code>ModelStateEntry</code>，访问 <code>.Errors</code></td></tr>
+                        <tr><td>System.Web.Mvc.Controller</td><td>Microsoft.AspNetCore.Mvc.ControllerBase</td></tr>
+                        <tr><td><code>return View(model)</code></td><td>同名，未变</td></tr>
+                        <tr><td><code>Request.QueryString</code></td><td>未变</td></tr>
+                        <tr><td><code>HttpContext.Current.Server.MapPath()</code></td><td><code>IWebHostEnvironment.WebRootPath</code> + <code>Path.Combine</code></td></tr>
+                        <tr><td><code>global.asax</code> 启动</td><td><code>Program.cs</code> 最小 API</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>不要把 <code>ModelState</code> 当成"错误信息聚合器"——它只用于"模型绑定/校验失败"。业务校验放进领域层。</li>
+                    <li>错误消息保持中文且对用户友好；开发者可以看 <code>ModelStateEntry.Exception</code>。</li>
+                    <li>生产环境不要把 <code>ErrorMessage</code> 原样返回——可能泄漏内部信息，统一走 ProblemDetails。</li>
+                    <li>ASP.NET Core 默认就会在 <code>[ApiController]</code> 自动返回 400 + ProblemDetails，无需手动判空。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/mvc/models/validation" target="_blank" rel="noopener noreferrer">ASP.NET Core 模型 Model 验证</a></li>
+                        <li><a href="https://learn.microsoft.com/aspnet/core/web-api/handle-errors" target="_blank" rel="noopener noreferrer">ASP.NET Core Handle Errors</a></li>
+                        <li><a href="https://docs.fluentvalidation.net/en/latest/aspnet.html" target="_blank" rel="noopener noreferrer">FluentValidation ASP.NET 集成</a></li>
+                        <li><a href="https://learn.microsoft.com/dotnet/api/microsoft.aspnetcore.mvc.modelbinding.modelstatedictionary" target="_blank" rel="noopener noreferrer">ModelStateDictionary API</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#orig">老代码</a>
+            <a href="#net8">ASP.NET Core 8 写法</a>
+            <a href="#alt">现代替代</a>
+            <a href="#migrate">迁移清单</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

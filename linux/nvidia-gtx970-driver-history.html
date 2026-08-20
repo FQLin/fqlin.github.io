@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Linux 安装 NVIDIA GTX 970 闭源驱动笔记（已 EOL，仅作历史版本参考）｜范庆林的技术博客</title>
+    <meta name="description" content="Linux 旧笔记：NVIDIA GTX 970 在 CentOS 7 安装闭源驱动的历史操作步骤；保留作为版本参考，并给出 nvidia-smi / 现代驱动 / Secure Boot / Wayland 时代的更新建议。">
+    <meta name="keywords" content="NVIDIA,GTX 970,闭源驱动,CentOS 7,历史笔记,显卡驱动">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/linux/nvidia-gtx970-driver-history.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Linux 安装 NVIDIA GTX 970 闭源驱动笔记（已 EOL，仅作历史版本参考）">
+    <meta property="og:description" content="Linux 旧笔记：NVIDIA GTX 970 在 CentOS 7 安装闭源驱动的历史操作步骤；保留作为版本参考，并给出 nvidia-smi / 现代驱动 / Secure Boot / Wayland 时代的更新建议。">
+    <meta property="og:url" content="https://fanqinglin.com/linux/nvidia-gtx970-driver-history.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Linux 安装 NVIDIA GTX 970 闭源驱动笔记（已 EOL，仅作历史版本参考）">
+    <meta name="twitter:description" content="Linux 旧笔记：NVIDIA GTX 970 在 CentOS 7 安装闭源驱动的历史操作步骤；保留作为版本参考，并给出 nvidia-smi / 现代驱动 / Secure Boot / Wayland 时代的更新建议。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/linux/nvidia-gtx970-driver-history.html",
+        "description": "Linux 旧笔记：NVIDIA GTX 970 在 CentOS 7 安装闭源驱动的历史操作步骤；保留作为版本参考，并给出 nvidia-smi / 现代驱动 / Secure Boot / Wayland 时代的更新建议。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#orig">原始笔记</a><a href="#now">现代替代</a><a href="#principles">使用准则</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / Linux / 显卡驱动</div>
+                <span class="article-kicker">Linux · NVIDIA 闭源驱动 · 历史归档</span>
+                <h1>Linux 安装 NVIDIA GTX 970 闭源驱动笔记（已 EOL，仅作历史版本参考）</h1>
+                <p class="article-deck">保留 2016 年前后的 NVIDIA 闭源驱动安装步骤——为今天面对老机器的读者提供版本参考；同时给出 nvidia-smi 验证与现代替代方案。</p>
+                <div class="article-meta">
+                    <span>硬件 GTX 970</span>
+                    <span>驱动 390.67（已 EOL）</span>
+                    <span>系统 CentOS 7</span>
+                    <span>2026-08-11 发布</span>
+                </div>
+                <div class="article-version">
+                    <strong>版本声明：</strong>原文针对 NVIDIA 390.67 闭源驱动 + CentOS 7。
+                    390 系列驱动已于 2022 年 12 月 EOL，新显卡（RTX 20/30/40 系列）需要 470+ / 535+ 驱动分支。
+                    现代 Linux（Ubuntu 22.04+ / Fedora 38+）走 <code>nvidia-driver</code> 包 + <code>Secure Boot</code> MOK 流程更稳。
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="orig">原始步骤（390.67 / CentOS 7）</h2>
+
+                <h3>1. 准备编译环境</h3>
+                <pre><code class="language-bash">yum -y install gcc kernel-devel kernel-headers</code></pre>
+
+                <h3>2. 屏蔽开源 nouveau 驱动</h3>
+                <p>编辑 <code>/usr/lib/modprobe.d/dist-blacklist.conf</code>：</p>
+                <pre><code class="language-ini"># 注释掉 blacklist nvidiafb
+# blacklist nvidiafb
+
+blacklist nouveau
+options nouveau modeset=0</code></pre>
+
+                <h3>3. 重建 initramfs</h3>
+                <pre><code class="language-bash">mv /boot/initramfs-$(uname -r).img /boot/initramfs-$(uname -r).img.bak
+dracut /boot/initramfs-$(uname -r).img $(uname -r)</code></pre>
+
+                <h3>4. 进入 init 3 安装</h3>
+                <pre><code class="language-bash">chmod +x NVIDIA-Linux-x86_64-390.67.run
+./NVIDIA-Linux-x86_64-390.67.run</code></pre>
+
+                <p>安装过程中会提示：</p>
+                <ul>
+                    <li>是否接受 License → yes</li>
+                    <li>是否安装 32 位兼容库 → 视需要</li>
+                    <li>是否自动配置 X → 视需要</li>
+                </ul>
+
+                <div class="article-warning">
+                    <strong>三个已过时：</strong>
+                    <ol>
+                        <li><code>kernel-devel</code> 必须和运行内核版本严格一致；错版会导致 <code>make</code> 编译失败。</li>
+                        <li>开源 <code>nouveau</code> 黑名单 + <code>dracut</code> 重建 initramfs 是 systemd-boot 时代方案。EFI + GRUB2 + BLS 引导的现代发行版不再需要。</li>
+                        <li>闭源 <code>.run</code> 安装器在 Secure Boot 启用时无法直接安装内核模块，需走 MOK 签名流程。</li>
+                    </ol>
+                </div>
+
+                <h2 id="now">现代替代方案</h2>
+
+                <h3>方案 1：发行版仓库（推荐）</h3>
+                <p>Ubuntu：</p>
+                <pre><code class="language-bash"># 添加官方 PPA（含最新驱动）
+sudo add-apt-repository ppa:graphics-drivers/ppa
+sudo ubuntu-drivers autoinstall   # 自动选最新 stable 驱动
+sudo reboot</code></pre>
+                <p>Fedora：</p>
+                <pre><code class="language-bash">sudo dnf install akmod-nvidia   # RPM Fusion
+sudo reboot</code></pre>
+                <p>优势：与内核升级自动同步；Secure Boot 由发行版签名处理；不用自己编译。</p>
+
+                <h3>方案 2：Secure Boot 下的 .run 安装器</h3>
+                <p>如果必须用官方 .run 文件：</p>
+                <pre><code class="language-bash"># 1. 生成 MOK 密钥
+sudo openssl req -new -x509 -newkey rsa:2048 -days 36500 \
+  -nodes -out /mok/MOK.priv -outform DER \
+  -keyout /mok/MOK.priv \
+  -subj "/CN=My MOK/"
+sudo openssl x509 -in /mok/MOK.pem -outform DER -out /mok/MOK.der
+
+# 2. 导入 MOK
+sudo mokutil --import /mok/MOK.der
+# 重启进入 MOK 管理界面 → Enroll MOK → 选择 /mok/MOK.der → 输入密码
+
+# 3. 安装驱动（启用模块签名）
+sudo ./NVIDIA-Linux-x86_64-535.183.06.run --module-signing-key=/mok/MOK.priv \
+  --module-signing-hash=sha256
+sudo reboot</code></pre>
+
+                <h3>方案 3：容器化（CUDA 场景）</h3>
+                <p>如果只为跑 CUDA / PyTorch，宿主机驱动只用 <code>nvidia-driver</code>，CUDA 跑在容器里：</p>
+                <pre><code class="language-bash"># 安装 nvidia-container-toolkit
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt update &amp;&amp; sudo apt install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+
+# 跑容器
+docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi</code></pre>
+                <p>这是 2025 年最稳的方案：宿主机驱动 + 容器内 CUDA / 框架环境，升级互不影响。</p>
+
+                <h2 id="verify">验证安装</h2>
+                <pre><code class="language-bash">nvidia-smi</code></pre>
+                <p>期望输出：</p>
+                <pre><code>+-----------------------------------------------------------------------------+
+| NVIDIA-SMI 535.183.06    Driver Version: 535.183.06    CUDA Version: 12.4     |
+|----------------------------------------+----------------------+------------------+
+| GPU  Name                 Persistence-M  Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|=========================================+======================+==================|
+|   0  NVIDIA GeForce GTX 970        Off | 00000000:01:00.0 Off |                  N/A |
+| 30%   38C    P0             N/A / 200W  |   123MiB /  4096MiB |      0%      Default |
++----------------------------------------+----------------------+------------------+</code></pre>
+                <p>关键看：</p>
+                <ul>
+                    <li><strong>Driver Version</strong>：≥ 535（2024 年新硬件推荐）</li>
+                    <li><strong>CUDA Version</strong>：与目标框架匹配（如 PyTorch 2.x 需要 CUDA 11.8 / 12.x）</li>
+                    <li><strong>Memory-Usage</strong>：日常应 < 30%，超过 80% 表示显存不足</li>
+                </ul>
+
+                <h2 id="troubleshoot">常见问题</h2>
+
+                <h3>Q1: 安装后启动黑屏</h3>
+                <ul>
+                    <li>检查 <code>/var/log/Xorg.0.log</code></li>
+                    <li>检查 <code>journalctl -b -p err</code></li>
+                    <li>如果 Secure Boot 未签名，驱动模块未加载 → 进 MOK 管理界面 enroll</li>
+                </ul>
+
+                <h3>Q2: 黑屏但 Ctrl+Alt+F2 可进 TTY</h3>
+                <pre><code class="language-bash">sudo systemctl set-default multi-user.target
+sudo reboot</code></pre>
+                <p>重启后进纯字符界面排查。</p>
+
+                <h3>Q3: Wayland 下 NVIDIA 性能差</h3>
+                <p>Wayland 下 NVIDIA 需要 <code>enable_nvidia_uvm</code> + GBM 后端。现代发行版（Fedora 38+ / Ubuntu 24.04+）默认配置已支持，老版本需要在登录管理器选择 Xorg 会话。</p>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>优先用发行版仓库；.run 文件仅在必须用最新驱动时使用。</li>
+                    <li>Secure Boot 必须配合 MOK 流程；禁用 Secure Boot 是最简但放弃安全性。</li>
+                    <li>不要在生产机器用 <code>init 3</code> + 手动 <code>.run</code> 的老流程——它会让你错过内核升级时的驱动自动重建。</li>
+                    <li>CUDA 需求走容器方案；宿主机只装驱动 + <code>nvidia-container-toolkit</code>。</li>
+                    <li>GTX 970 是 Maxwell 架构（2014），最大支持 CUDA 11.x；新 PyTorch 默认 CUDA 12 已经不兼容，需强制 <code>cuda&lt;12</code>。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://www.nvidia.com/en-us/drivers/unix/" target="_blank" rel="noopener noreferrer">NVIDIA 官方 Linux 驱动</a></li>
+                        <li><a href="https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/index.html" target="_blank" rel="noopener noreferrer">NVIDIA Data Center Linux 安装指南</a></li>
+                        <li><a href="https://github.com/NVIDIA/nvidia-container-runtime" target="_blank" rel="noopener noreferrer">nvidia-container-runtime</a></li>
+                        <li><a href="https://wiki.ubuntu.com/NvidiaDrivers" target="_blank" rel="noopener noreferrer">Ubuntu Wiki - NvidiaDrivers</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#orig">原始笔记</a>
+            <a href="#now">现代替代</a>
+            <a href="#verify">验证安装</a>
+            <a href="#troubleshoot">常见问题</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

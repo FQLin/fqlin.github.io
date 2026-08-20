@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VS Code launch.json 调试配置完全指南-范庆林的技术博客</title>
+    <meta name="description" content="VS Code launch.json 调试配置详解：常用字段、预设变量、多语言示例、复合调试与常见错误。">
+    <meta name="keywords" content="VS Code,launch.json,调试,断点,环境变量,多语言调试">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/devops/vscode-launch-json.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="VS Code launch.json 调试配置完全指南">
+    <meta property="og:description" content="VS Code launch.json 调试配置详解：常用字段、预设变量、多语言示例、复合调试与常见错误。">
+    <meta property="og:url" content="https://fanqinglin.com/devops/vscode-launch-json.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="VS Code launch.json 调试配置完全指南">
+    <meta name="twitter:description" content="VS Code launch.json 调试配置详解：常用字段、预设变量、多语言示例、复合调试与常见错误。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/devops/vscode-launch-json.html",
+        "description": "VS Code launch.json 调试配置详解：常用字段、预设变量、多语言示例、复合调试与常见错误。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#what">是做什么的</a><a href="#fields">核心字段</a><a href="#node">Node.js 示例</a><a href="#dotnet">.NET 示例</a><a href="#compound">复合调试</a><a href="#variables">预设变量</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / 工具 / VS Code</div>
+                <span class="article-kicker">Tool · Editor</span>
+                <h1>VS Code launch.json 调试配置完全指南</h1>
+                <p class="article-deck">从零开始写一份 <code>launch.json</code>：核心字段解释、Node 与 .NET 两套示例、复合调试、常用变量。</p>
+                <div class="article-meta">
+                    <span>VS Code</span>
+                    <span>launch.json</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="what">launch.json 是做什么的</h2>
+                <p>VS Code 的调试行为由 <code>.vscode/launch.json</code> 描述。打开调试面板（F5），VS Code 列出 <code>configurations</code> 数组里的每条配置；选中一条启动即可。</p>
+                <p>一份最小的文件长这样：</p>
+                <pre><code>{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Run app.js",
+      "program": "${workspaceFolder}/app.js"
+    }
+  ]
+}</code></pre>
+                <p>字段含义：</p>
+                <ul>
+                    <li><code>type</code>：调试器类型，如 <code>node</code>、<code>coreclr</code>、<code>chrome</code></li>
+                    <li><code>request</code>：<code>launch</code> 启动新进程；<code>attach</code> 附加到已运行进程</li>
+                    <li><code>name</code>：面板上显示的名字</li>
+                </ul>
+
+                <h2 id="fields">核心字段</h2>
+                <table>
+                    <thead><tr><th>字段</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>program</code></td><td>启动的可执行文件 / 入口</td></tr>
+                        <tr><td><code>args</code></td><td>传给程序的参数（数组）</td></tr>
+                        <tr><td><code>cwd</code></td><td>当前工作目录</td></tr>
+                        <tr><td><code>env</code></td><td>环境变量（对象）</td></tr>
+                        <tr><td><code>envFile</code></td><td>环境变量文件路径（如 <code>.env</code>）</td></tr>
+                        <tr><td><code>preLaunchTask</code></td><td>启动前先跑的 task（在 <code>tasks.json</code> 里定义）</td></tr>
+                        <tr><td><code>postDebugTask</code></td><td>调试结束后跑的 task</td></tr>
+                        <tr><td><code>console</code></td><td><code>internalConsole</code> / <code>integratedTerminal</code> / <code>externalTerminal</code></td></tr>
+                        <tr><td><code>port</code></td><td>attach 模式要连的端口</td></tr>
+                        <tr><td><code>stopOnEntry</code></td><td>启动时立刻停在第一行</td></tr>
+                        <tr><td><code>serverReadyAction</code></td><td>服务器起来后自动打开浏览器</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="node">Node.js 示例</h2>
+                <p>启动 Express / Koa 服务，监听 3000 后自动打开浏览器：</p>
+                <pre><code>{
+  "type": "node",
+  "request": "launch",
+  "name": "Run API",
+  "program": "${workspaceFolder}/src/index.ts",
+  "preLaunchTask": "tsc -p tsconfig.json",
+  "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+  "runtimeArgs": ["-r", "ts-node/register"],
+  "args": ["--port", "3000"],
+  "env": { "NODE_ENV": "development" },
+  "envFile": "${workspaceFolder}/.env",
+  "console": "integratedTerminal",
+  "serverReadyAction": {
+    "pattern": "listening on port ([0-9]+)",
+    "uriFormat": "http://localhost:%s",
+    "action": "openExternally"
+  }
+}</code></pre>
+                <p>三个易错点：</p>
+                <ul>
+                    <li><code>outFiles</code> 是 sourcemap 映射路径，TypeScript 项目要写对，否则断点不会停。</li>
+                    <li><code>runtimeArgs</code> 是给 Node 本身的；<code>args</code> 是给被调试程序的。</li>
+                    <li><code>serverReadyAction.pattern</code> 必须能匹配启动日志里的关键行。</li>
+                </ul>
+
+                <h2 id="dotnet">.NET 示例</h2>
+                <p>启动 ASP.NET Core 项目，附加到现有进程：</p>
+                <pre><code>{
+  "type": "coreclr",
+  "request": "launch",
+  "name": "Run ASP.NET Core",
+  "program": "${workspaceFolder}/src/MyApp/bin/Debug/net8.0/MyApp.dll",
+  "args": [],
+  "cwd": "${workspaceFolder}/src/MyApp",
+  "env": { "ASPNETCORE_ENVIRONMENT": "Development" },
+  "serverReadyAction": {
+    "pattern": "Now listening on:\\s+(https?://\\S+)",
+    "uriFormat": "%s",
+    "action": "openExternally"
+  }
+}</code></pre>
+                <p>或 attach 到已运行的进程：</p>
+                <pre><code>{
+  "type": "coreclr",
+  "request": "attach",
+  "name": "Attach to MyApp",
+  "processName": "dotnet",
+  "pipeTransport": {
+    "pipeProgram": "ssh",
+    "pipeArgs": ["-T", "user@server"],
+    "debuggerPath": "/usr/share/dotnet/dotnet"
+  }
+}</code></pre>
+                <p><code>pipeTransport</code> 用于远程容器 / 服务器：SSH 进去后再调试。</p>
+
+                <h2 id="compound">复合调试：前后端一起跑</h2>
+                <p>前端 + 后端的项目，可以用复合调试一次启动两个进程：</p>
+                <pre><code>{
+  "compounds": [
+    {
+      "name": "Full Stack",
+      "configurations": ["Run API", "Run Frontend"],
+      "preLaunchTask": "build-all",
+      "stopAll": true
+    }
+  ]
+}</code></pre>
+                <p>选中 "Full Stack" 一启动，前后端两个进程一起进调试状态；结束调试时一起退出。</p>
+
+                <h2 id="variables">预设变量</h2>
+                <p>常用变量（写成 <code>${name}</code>）：</p>
+                <table>
+                    <thead><tr><th>变量</th><th>含义</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>${workspaceFolder}</code></td><td>当前工作区根路径</td></tr>
+                        <tr><td><code>${workspaceFolderBasename}</code></td><td>工作区目录名</td></tr>
+                        <tr><td><code>${file}</code></td><td>当前文件绝对路径</td></tr>
+                        <tr><td><code>${relativeFile}</code></td><td>当前文件相对工作区路径</td></tr>
+                        <tr><td><code>${fileBasename}</code></td><td>当前文件名（带后缀）</td></tr>
+                        <tr><td><code>${fileBasenameNoExtension}</code></td><td>当前文件名（去后缀）</td></tr>
+                        <tr><td><code>${env:VAR}</code></td><td>环境变量 VAR</td></tr>
+                        <tr><td><code>${defaultBuildTask}</code></td><td>默认 build task 名</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="common">常见错误</h2>
+                <ul>
+                    <li><strong>断点变灰色圆圈</strong>：sourcemap / <code>outFiles</code> 没配对，或 <code>program</code> 路径错。</li>
+                    <li><strong>Cannot find runtime</strong>：<code>runtimeArgs</code> 与 <code>args</code> 混了，前者是给 Node / dotnet 本身的。</li>
+                    <li><strong>Console 输出乱码</strong>：Node 项目用 <code>integratedTerminal</code>，不要用默认的 <code>internalConsole</code>。</li>
+                </ul>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>每个项目独立 <code>launch.json</code>，提交进 Git。</li>
+                    <li>多用 <code>${workspaceFolder}</code> 等变量，避免硬编码绝对路径。</li>
+                    <li>前后端联调优先用 <code>compounds</code>，比手工开两个调试窗口省心。</li>
+                    <li>调试容器 / 远端用 <code>pipeTransport</code> + <code>attach</code>，不要尝试 <code>launch</code>。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://code.visualstudio.com/docs/editor/debugging" target="_blank" rel="noopener noreferrer">VS Code 调试文档</a></li>
+                        <li><a href="https://code.visualstudio.com/docs/editor/variables-reference" target="_blank" rel="noopener noreferrer">预设变量参考</a></li>
+                        <li><a href="https://code.visualstudio.com/docs/nodejs/nodejs-debugging" target="_blank" rel="noopener noreferrer">Node.js 调试</a></li>
+                        <li><a href="https://code.visualstudio.com/docs/editor/tasks" target="_blank" rel="noopener noreferrer">tasks.json</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#what">是什么</a>
+            <a href="#fields">核心字段</a>
+            <a href="#node">Node 示例</a>
+            <a href="#dotnet">.NET 示例</a>
+            <a href="#compound">复合调试</a>
+            <a href="#variables">预设变量</a>
+            <a href="#common">常见错误</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

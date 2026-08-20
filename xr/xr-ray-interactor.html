@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XR Ray Interactor 详解：Home 场景射线交互器-范庆林的技术博客</title>
+    <meta name="description" content="XR Interaction Toolkit 中 XR Ray Interactor 的全部属性分类详解：交互配置、输入、射线轨迹、命中过滤、UI 交互、远距操控与 AR 选项。">
+    <meta name="keywords" content="XR Ray Interactor,XRI,射线,交互器,Unity,VR,AR">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/xr/xr-ray-interactor.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="XR Ray Interactor 详解：Home 场景射线交互器">
+    <meta property="og:description" content="XR Interaction Toolkit 中 XR Ray Interactor 的全部属性分类详解：交互配置、输入、射线轨迹、命中过滤、UI 交互、远距操控与 AR 选项。">
+    <meta property="og:url" content="https://fanqinglin.com/xr/xr-ray-interactor.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="XR Ray Interactor 详解：Home 场景射线交互器">
+    <meta name="twitter:description" content="XR Interaction Toolkit 中 XR Ray Interactor 的全部属性分类详解：交互配置、输入、射线轨迹、命中过滤、UI 交互、远距操控与 AR 选项。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/xr/xr-ray-interactor.html",
+        "description": "XR Interaction Toolkit 中 XR Ray Interactor 的全部属性分类详解：交互配置、输入、射线轨迹、命中过滤、UI 交互、远距操控与 AR 选项。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#what">它与线的区别</a><a href="#interaction">交互配置</a><a href="#input">输入相关</a><a href="#ray">射线轨迹</a><a href="#hit">命中过滤</a><a href="#ui">UI 交互</a><a href="#manipulate">远距操控</a><a href="#ar">AR 选项</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / XR 项目专题 / Unity XR Interaction Toolkit</div>
+                <span class="article-kicker">XR · XRI 3.x</span>
+                <h1>XR Ray Interactor 详解：Home 场景射线交互器</h1>
+                <p class="article-deck">真正负责"射线打出去并与 UI / 模型发生交互"的组件是 <code>XR Ray Interactor</code>，不是 <code>XR Interactor Line Visual</code>。本文按属性分组逐一解释。</p>
+                <div class="article-meta">
+                    <span>XRI 3.4.1</span>
+                    <span>2026-08-06 重写</span>
+                    <span>Unity XR</span>
+                    <span>VR 项目专题</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="what">它与"线"的区别</h2>
+                <p>Home 场景里左右手控制器各挂一个 <code>XR Ray Interactor</code>：</p>
+                <ul>
+                    <li><code>XR Ray Interactor</code>：<strong>负责真正的命中、选中、交互</strong>。</li>
+                    <li><code>XR Interactor Line Visual</code>：<strong>只是把那条射线画出来</strong>，不参与命中逻辑。</li>
+                </ul>
+                <p>看到线在、点不到按钮 → 优先排查 <code>XR Ray Interactor</code> 的配置，不是视觉。</p>
+
+                <h2 id="interaction">交互配置</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Interaction Manager</code></td><td>通信的 XR Interaction Manager。留空通常自动找场景里的 <code>XR Interaction Manager</code>。</td></tr>
+                        <tr><td><code>Interaction Layers</code></td><td>这条射线能和哪些交互层的对象交互。</td></tr>
+                        <tr><td><code>Handedness</code></td><td>左手 / 右手标记。</td></tr>
+                        <tr><td><code>Attach Transform</code></td><td>抓取或选中后物体的附着参考点。留空自动生成。</td></tr>
+                        <tr><td><code>Keep Selected Target Valid</code></td><td>选中后即使射线暂时没继续打到目标，也保持这次选中有效。</td></tr>
+                        <tr><td><code>Disable Visuals When Blocked In Group</code></td><td>被交互组里其他交互器挡住时关掉视觉反馈。</td></tr>
+                        <tr><td><code>Starting Selected Interactable</code></td><td>场景一开始默认就被选中的对象。</td></tr>
+                        <tr><td><code>Starting Target Filter</code> / <code>Starting Hover Filters</code> / <code>Starting Select Filters</code></td><td>启动时附加的目标 / 悬停 / 选中过滤器。</td></tr>
+                        <tr><td><code>Hover Entered</code> / <code>Hover Exited</code> / <code>Select Entered</code> / <code>Select Exited</code></td><td>事件回调（UnityEvent）。</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="input">输入相关</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Select Input</code></td><td>选中输入（通常是扳机 / Grip 的"选中"动作）。</td></tr>
+                        <tr><td><code>Activate Input</code></td><td>激活输入（次级动作）。</td></tr>
+                        <tr><td><code>Select Action Trigger</code></td><td>触发模式：状态变化 / 保持按住 / 切换式。</td></tr>
+                        <tr><td><code>Allow Hovered Activate</code></td><td>未选中时单靠悬停是否触发 Activate。</td></tr>
+                        <tr><td><code>Hide Controller On Select</code></td><td>选中时是否隐藏控制器模型。</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="ray">射线轨迹</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Line Type</code></td><td>直线 / 抛物线 / 贝塞尔曲线。Starter Assets 通常用直线或曲线。</td></tr>
+                        <tr><td><code>Blend Visual Line Points</code></td><td>让显示线贴合当前控制器姿态，减少"线尾巴跟不上手"。</td></tr>
+                        <tr><td><code>Max Raycast Distance</code></td><td>射线最大距离。</td></tr>
+                        <tr><td><code>Ray Origin Transform</code></td><td>射线从哪里发出。留空用默认附着点 / 控制器位姿。</td></tr>
+                        <tr><td><code>Reference Frame</code></td><td>曲线射线的参考坐标系（直线模式基本无效）。</td></tr>
+                        <tr><td><code>Velocity</code> / <code>Acceleration</code> / <code>Additional Ground Height</code> / <code>Additional Flight Time</code> / <code>End Point Distance</code> / <code>End Point Height</code> / <code>Control Point Distance</code> / <code>Control Point Height</code></td><td>抛物线 / 贝塞尔曲线参数。直线模式下不用。</td></tr>
+                        <tr><td><code>Sample Frequency</code></td><td>曲线采样点数量。</td></tr>
+                        <tr><td><code>Hit Detection Type</code></td><td><code>Raycast</code> / <code>SphereCast</code> / <code>ConeCast</code>。</td></tr>
+                        <tr><td><code>Sphere Cast Radius</code></td><td>球投射半径（仅 <code>SphereCast</code>）。</td></tr>
+                        <tr><td><code>Cone Cast Angle</code></td><td>锥投射角度（仅 <code>ConeCast</code>）。</td></tr>
+                        <tr><td><code>Live Cone Cast Debug Visuals</code></td><td>显示锥投射调试图。</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="hit">命中过滤</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Raycast Mask</code></td><td>对哪些 Unity Layer 做射线检测。</td></tr>
+                        <tr><td><code>Raycast Trigger Interaction</code></td><td>是否命中 Trigger Collider。</td></tr>
+                        <tr><td><code>Raycast Snap Volume Interaction</code></td><td>是否把 Snap Volume 类触发体也算进来。</td></tr>
+                        <tr><td><code>Hit Closest Only</code></td><td>是否只取最近一个目标（<code>false</code> 允许多目标 hover）。</td></tr>
+                    </tbody>
+                </table>
+                <div class="article-note"><code>Raycast Mask</code> 是 Unity 物理 Layer；<code>Interaction Layers</code> 是 XR 自己的层。两者不一样：物理打到了但 XR 不选 → 通常是 XR 层不匹配；XR 层对但物理没打中 → 是 <code>Raycast Mask</code> 问题。</div>
+
+                <h2 id="hover">悬停自动选中</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Hover To Select</code></td><td>是否只靠悬停一段时间就自动选中。</td></tr>
+                        <tr><td><code>Hover Time To Select</code></td><td>自动选中所需的悬停时间。</td></tr>
+                        <tr><td><code>Auto Deselect</code></td><td>选中后是否自动取消。</td></tr>
+                        <tr><td><code>Time To Auto Deselect</code></td><td>自动取消前的等待时间。</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="ui">UI 交互</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Enable UI Interaction</code></td><td>允许这条射线像鼠标一样点 World Space UI。</td></tr>
+                        <tr><td><code>Block Interactions With Screen Space UI</code></td><td>被屏幕空间 UI 挡住时是否禁用 3D 交互。</td></tr>
+                        <tr><td><code>Block UI On Interactable Selection</code></td><td>当已在选中交互物体时，是否阻止点 UI。</td></tr>
+                        <tr><td><code>UI Hover Entered</code> / <code>UI Hover Exited</code></td><td>UI 悬停事件。</td></tr>
+                        <tr><td><code>UI Press Input</code></td><td>点 UI 按钮时用的输入。</td></tr>
+                        <tr><td><code>UI Scroll Input</code></td><td>滚动 UI 列表时用的输入。</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="manipulate">远距操控物体</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Manipulate Attach Transform</code></td><td>允许用摇杆调附着点（沿射线前后移、旋转、缩放）。</td></tr>
+                        <tr><td><code>Use Force Grab</code></td><td>选中时是否瞬间把物体拉到手边。</td></tr>
+                        <tr><td><code>Rotate Speed</code> / <code>Translate Speed</code></td><td>旋转 / 推拉速度。</td></tr>
+                        <tr><td><code>Rotate Reference Frame</code></td><td>旋转参考坐标系。</td></tr>
+                        <tr><td><code>Rotate Mode</code></td><td>持续旋转 / 摇杆方向匹配朝向。</td></tr>
+                        <tr><td><code>Translate Manipulation Input</code> / <code>Rotate Manipulation Input</code> / <code>Directional Manipulation Input</code></td><td>操控用的输入。</td></tr>
+                        <tr><td><code>Scale Mode</code></td><td>缩放模式（关闭 / 一次性切换 / 持续缩放）。</td></tr>
+                        <tr><td><code>Scale Toggle Input</code> / <code>Scale Over Time Input</code></td><td>缩放触发输入。</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="ar">AR 相关</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Enable AR Raycasting</code></td><td>启用 AR 平面检测射线。</td></tr>
+                        <tr><td><code>Occlude AR Hits With 3D Objects</code></td><td>3D 物体是否遮挡 AR 命中。</td></tr>
+                        <tr><td><code>Occlude AR Hits With 2D Objects</code></td><td>2D 物体是否遮挡 AR 命中。</td></tr>
+                    </tbody>
+                </table>
+                <p>Oculus VR Home 场景通常用不到这些。</p>
+
+                <h2 id="references">参考资料</h2>
+                <ul>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html" target="_blank" rel="noopener noreferrer">XR Interaction Toolkit 手册</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#near-far-interactor" target="_blank" rel="noopener noreferrer">Near-Far Interactor 章节</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#ray-interactor" target="_blank" rel="noopener noreferrer">XR Ray Interactor 章节</a></li>
+                    <li><a href="https://github.com/Unity-Technologies/XR-Interaction-Toolkit-Examples" target="_blank" rel="noopener noreferrer">XRI 示例仓库</a></li>
+                </ul>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#what">它与线的区别</a>
+            <a href="#interaction">交互配置</a>
+            <a href="#input">输入相关</a>
+            <a href="#ray">射线轨迹</a>
+            <a href="#hit">命中过滤</a>
+            <a href="#hover">悬停自动选中</a>
+            <a href="#ui">UI 交互</a>
+            <a href="#manipulate">远距操控</a>
+            <a href="#ar">AR 选项</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

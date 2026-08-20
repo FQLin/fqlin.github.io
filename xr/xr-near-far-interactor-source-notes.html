@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NearFarInteractor 源码阅读笔记：理解官方文档没说的细节-范庆林的技术博客</title>
+    <meta name="description" content="NearFarInteractor 源码阅读笔记：从 Awake/OnEnable/每帧核心流程到 selectionRegion 状态切换、近远距优先级、UI 与 3D 命中权衡，理解官方文档里没说透的实现细节。">
+    <meta name="keywords" content="NearFarInteractor,源码阅读,Unity,XRI,XR,实现细节">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/xr/xr-near-far-interactor-source-notes.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="NearFarInteractor 源码阅读笔记：理解官方文档没说的细节">
+    <meta property="og:description" content="NearFarInteractor 源码阅读笔记：从 Awake/OnEnable/每帧核心流程到 selectionRegion 状态切换、近远距优先级、UI 与 3D 命中权衡，理解官方文档里没说透的实现细节。">
+    <meta property="og:url" content="https://fanqinglin.com/xr/xr-near-far-interactor-source-notes.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="NearFarInteractor 源码阅读笔记：理解官方文档没说的细节">
+    <meta name="twitter:description" content="NearFarInteractor 源码阅读笔记：从 Awake/OnEnable/每帧核心流程到 selectionRegion 状态切换、近远距优先级、UI 与 3D 命中权衡，理解官方文档里没说透的实现细节。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/xr/xr-near-far-interactor-source-notes.html",
+        "description": "NearFarInteractor 源码阅读笔记：从 Awake/OnEnable/每帧核心流程到 selectionRegion 状态切换、近远距优先级、UI 与 3D 命中权衡，理解官方文档里没说透的实现细节。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#awake">Awake 顺序</a><a href="#missing">自动补组件</a><a href="#ui-toggle">UI 开关不是布尔</a><a href="#enable">OnEnable / OnDisable</a><a href="#frame">每帧核心流程</a><a href="#region">selectionRegion 判断</a><a href="#priority">近远距优先</a><a href="#ui-vs-3d">UI vs 3D 命中</a><a href="#conclusion">关键结论</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / XR 项目专题 / Unity XR Interaction Toolkit</div>
+                <span class="article-kicker">XR · 源码笔记</span>
+                <h1>NearFarInteractor 源码阅读笔记：理解官方文档没说的细节</h1>
+                <p class="article-deck">从 <code>Awake/OnEnable</code>、每帧核心流程到 <code>selectionRegion</code> 切换、近远距优先、UI 与 3D 命中权衡。</p>
+                <div class="article-meta">
+                    <span>XRI 3.4.1</span>
+                    <span>2026-08-06 重写</span>
+                    <span>Unity XR</span>
+                    <span>VR 项目专题</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="awake">Awake 里最先做的一件事</h2>
+                <p>源码中 <code>Awake()</code> 的顺序很值得注意：</p>
+                <ol>
+                    <li>先 <code>InitializeReferences()</code></li>
+                    <li>再 <code>base.Awake()</code></li>
+                </ol>
+                <p>这意味着它先把自己依赖的核心组件找齐，再走基类初始化流程。这保证 <code>attachTransform</code> 在早期就准备好。</p>
+
+                <h2 id="missing">缺少核心组件时会自动补</h2>
+                <p><code>InitializeReferences()</code> 做三件事：</p>
+                <ul>
+                    <li><strong>远距离 Caster</strong>：<code>farInteractionCaster</code> 为空时，先找当前对象已有的 <code>ICurveInteractionCaster</code>，找不到就 <code>AddComponent&lt;CurveInteractionCaster&gt;()</code>。</li>
+                    <li><strong>近距离 Caster</strong>：<code>nearInteractionCaster</code> 为空时，先找当前对象已有的 <code>IInteractionCaster</code>，<strong>但跳过同时也是 <code>ICurveInteractionCaster</code> 的组件</strong>——避免把远距 Caster 误当近距 Caster。最终找不到就 <code>AddComponent&lt;SphereInteractionCaster&gt;()</code>。</li>
+                    <li><strong>Attach Controller</strong>：<code>interactionAttachController</code> 为空时，先找 <code>IInteractionAttachController</code>，找不到就 <code>AddComponent&lt;InteractionAttachController&gt;()</code>。</li>
+                </ul>
+                <p>最后还会执行：</p>
+                <pre><code>attachTransform = interactionAttachController.GetOrCreateAnchorTransform();</code></pre>
+                <p>附着锚点不是可有可无的，会在初始化阶段被明确创建或拿到。</p>
+                <div class="article-warning">运行时自动补虽然方便，但编辑器里不直观，Inspector 里看不清"现在到底是谁在起作用"。建议<strong>显式挂好并绑定引用</strong>，不要依赖自动补。</div>
+
+                <h2 id="ui-toggle">UI 交互不是单纯一个布尔值</h2>
+                <p><code>enableUIInteraction</code> 的 setter 不只是把布尔值改掉，还会调用：</p>
+                <pre><code>RegisterOrUnregisterXRUIInputModule(m_EnableUIInteraction)</code></pre>
+                <p>UI 交互开关不只是逻辑判断，还会影响和 <code>XRUIInputModule</code> 的注册关系。改这个值时，系统会同步处理 UI 注册状态。</p>
+
+                <h2 id="enable">OnEnable / OnDisable 做了什么</h2>
+                <p><strong>OnEnable</strong>：如果 UI 交互开启，执行 <code>UpdateUIRegistration()</code>。</p>
+                <p><strong>OnDisable</strong>：</p>
+                <ul>
+                    <li>取消向 <code>XRUIInputModule</code> 的注册</li>
+                    <li>如果启用了 UI Toolkit 世界空间支持，也会从对应系统中注销</li>
+                    <li>调用 <code>InitializeInteractor()</code> 清空本轮交互缓存</li>
+                </ul>
+                <p>它对 UI 注册状态的管理比较完整，不是只在首次启动时注册一次就不管了。</p>
+
+                <h2 id="frame">每一帧的核心流程</h2>
+                <p>在 <code>PreprocessInteractor(UpdatePhase.Dynamic)</code> 里，核心顺序是：</p>
+                <ol>
+                    <li><code>InitializeInteractor()</code></li>
+                    <li><code>UpdateAnchor()</code></li>
+                    <li><code>DetermineSelectionRegion()</code></li>
+                    <li><code>EvaluateNearInteraction()</code></li>
+                    <li><code>EvaluateFarInteraction(newSelectionRegion)</code></li>
+                    <li><code>UpdateSelectionRegion(newSelectionRegion)</code></li>
+                    <li>如启用 UI Toolkit 支持，再处理对应事件</li>
+                </ol>
+                <p>这条顺序告诉我们：</p>
+                <ul>
+                    <li>先更新附着点</li>
+                    <li>再判断当前是 Near 还是 Far</li>
+                    <li>再依次评估近距和远距命中</li>
+                </ul>
+
+                <h2 id="region">selectionRegion 是怎么判断的</h2>
+                <p><code>DetermineSelectionRegion()</code> 的逻辑很直接：</p>
+                <ul>
+                    <li>如果当前没有选择，返回 <code>None</code></li>
+                    <li>如果有选择，看 <code>interactionAttachController.hasOffset</code></li>
+                    <li>有偏移就是 <code>Far</code></li>
+                    <li>没偏移就是 <code>Near</code></li>
+                </ul>
+                <p>一个很关键的行为：</p>
+                <blockquote>某个对象最开始可能是通过远距离选中的，但如果它被拉近到没有偏移，<code>selectionRegion</code> 会从 <code>Far</code> 变成 <code>Near</code>。</blockquote>
+                <p>这也是官方文档里"Far 选中后可能变成 Near"的源码依据。</p>
+
+                <h2 id="priority">近距和远距的优先关系</h2>
+
+                <h3>近距逻辑</h3>
+                <p><code>EvaluateNearInteraction()</code> 里，如果满足下面任一条件，就不会继续：</p>
+                <ul>
+                    <li>没开启近距探测</li>
+                    <li>当前已经有选中对象</li>
+                    <li>近距 Caster 没找到有效 Collider</li>
+                </ul>
+                <p>近距逻辑更偏向"未选中时找手边目标"，不是"选中了还一直靠近重新抢目标"的设计。</p>
+
+                <h3>远距逻辑</h3>
+                <p><code>EvaluateFarInteraction()</code> 里有两个关键条件：</p>
+                <ul>
+                    <li>如果没开远距探测，且当前也不是 Far 选中，就不更新远距</li>
+                    <li>如果近距已经先找到有效目标，则直接不处理远距</li>
+                </ul>
+                <p>这说明：</p>
+                <blockquote>同一帧里，如果近距先拿到有效目标，远距通常让路。</blockquote>
+                <p>手边真有能抓的东西时，优先按近距处理——不要让远处射线抢走焦点。</p>
+
+                <h2 id="ui-vs-3d">它会比较 2D UI 命中和 3D 命中</h2>
+                <p>远距逻辑不是只看 3D Collider。它还会：</p>
+                <ul>
+                    <li>取当前 UI 的 <code>RaycastResult</code></li>
+                    <li>计算 UI 命中距离</li>
+                    <li>计算 3D 命中距离</li>
+                    <li>比较两者谁更应该被处理</li>
+                </ul>
+                <p>更容易理解地说：</p>
+                <blockquote>它不是"只要打到 3D 就不管 UI"，而是会在 UI 和 3D 之间做优先级比较。</blockquote>
+                <p>对同时存在 World Space UI 与 3D 模型的 VR 场景很重要。</p>
+
+                <h2 id="multi-target">目前只支持一个有效目标</h2>
+                <p>源码里有一个明确字段：</p>
+                <pre><code>m_AllowMultipleValidTargets = false</code></pre>
+                <p>注释写得很清楚：当前只支持一个有效目标，未来可能扩展。它内部虽然可能暂存多个候选，但对外主要按"单一有效目标"工作。</p>
+
+                <h2 id="sort">排序和过滤的一个细节</h2>
+                <p>近距和远距目标注册时都会考虑 <code>targetFilter</code>。如果有 <code>targetFilter</code>，很多情况下排序会交给 filter；<code>sortNearTargetsAfterTargetFilter</code> 只适合"filter 本身不排序"的情况。</p>
+                <p>这个选项不是默认都该开，是给进阶过滤逻辑准备的。</p>
+
+                <h2 id="conclusion">关键结论</h2>
+                <ol>
+                    <li>运行时确实会自动补默认组件，但项目里最好还是显式挂好，方便排查。</li>
+                    <li>UI 交互开关会影响注册状态，不只是变量值。</li>
+                    <li>近距优先级通常高于远距。</li>
+                    <li>远距逻辑会同时权衡 UI 命中和 3D 命中。</li>
+                    <li><code>selectionRegion</code> 会随着对象被拉近而变化。</li>
+                </ol>
+
+                <h2 id="references">参考资料</h2>
+                <ul>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html" target="_blank" rel="noopener noreferrer">XR Interaction Toolkit 手册</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#near-far-interactor" target="_blank" rel="noopener noreferrer">Near-Far Interactor 章节</a></li>
+                    <li><a href="https://github.com/Unity-Technologies/XR-Interaction-Toolkit-Examples" target="_blank" rel="noopener noreferrer">XRI 示例仓库</a></li>
+                </ul>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#awake">Awake 顺序</a>
+            <a href="#missing">自动补组件</a>
+            <a href="#ui-toggle">UI 开关</a>
+            <a href="#enable">OnEnable / OnDisable</a>
+            <a href="#frame">每帧核心流程</a>
+            <a href="#region">selectionRegion</a>
+            <a href="#priority">近远距优先</a>
+            <a href="#ui-vs-3d">UI vs 3D</a>
+            <a href="#multi-target">单一有效目标</a>
+            <a href="#sort">排序与过滤</a>
+            <a href="#conclusion">关键结论</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

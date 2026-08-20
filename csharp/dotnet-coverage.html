@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>.NET 单元测试覆盖率实战：coverlet + ReportGenerator-范庆林的技术博客</title>
+    <meta name="description" content="在 .NET 项目中跑出单元测试覆盖率报告：coverlet 收集数据、ReportGenerator 生成 HTML。覆盖阈值控制、多项目合并、与主流断言库的搭配。">
+    <meta name="keywords" content=".NET,单元测试,覆盖率,coverlet,ReportGenerator,断言库">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/csharp/dotnet-coverage.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content=".NET 单元测试覆盖率实战：coverlet + ReportGenerator">
+    <meta property="og:description" content="在 .NET 项目中跑出单元测试覆盖率报告：coverlet 收集数据、ReportGenerator 生成 HTML。覆盖阈值控制、多项目合并、与主流断言库的搭配。">
+    <meta property="og:url" content="https://fanqinglin.com/csharp/dotnet-coverage.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content=".NET 单元测试覆盖率实战：coverlet + ReportGenerator">
+    <meta name="twitter:description" content="在 .NET 项目中跑出单元测试覆盖率报告：coverlet 收集数据、ReportGenerator 生成 HTML。覆盖阈值控制、多项目合并、与主流断言库的搭配。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/csharp/dotnet-coverage.html",
+        "description": "在 .NET 项目中跑出单元测试覆盖率报告：coverlet 收集数据、ReportGenerator 生成 HTML。覆盖阈值控制、多项目合并、与主流断言库的搭配。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#single">单项目最小闭环</a><a href="#merge">多测试项目合并</a><a href="#threshold">阈值与门禁</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / C# / .NET / 测试</div>
+                <span class="article-kicker">Toolbox · .NET / Testing</span>
+                <h1>.NET 单元测试覆盖率实战：coverlet + ReportGenerator</h1>
+                <p class="article-deck">两条命令：<code>dotnet test</code> 收集覆盖数据，<code>reportgenerator</code> 渲染 HTML。看完即可上手，30 分钟接进现有项目。</p>
+                <div class="article-meta">
+                    <span>.NET 6+</span>
+                    <span>coverlet</span>
+                    <span>ReportGenerator</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="single">单项目最小闭环</h2>
+                <p>前提：已经有一个 .NET 类库 <code>MyLib</code> 和一个 xUnit 测试项目 <code>MyLib.Tests</code>，测试项目 <code>.csproj</code> 里引用了 <code>coverlet.collector</code>：</p>
+                <pre><code>dotnet add MyLib.Tests package coverlet.collector</code></pre>
+                <p>第一步：跑测试，同时收集覆盖率。</p>
+                <pre><code>dotnet test MyLib.Tests \
+  /p:CollectCoverage=true \
+  /p:CoverletOutputFormat=opencover \
+  /p:CoverletOutput=./TestResult/</code></pre>
+                <p>三个参数含义：</p>
+                <ul>
+                    <li><code>CollectCoverage=true</code>：让 coverlet 接管测试过程</li>
+                    <li><code>CoverletOutputFormat=opencover</code>：输出 OpenCover 格式（与 ReportGenerator 对接）</li>
+                    <li><code>CoverletOutput</code>：输出目录</li>
+                </ul>
+                <p>跑完之后 <code>TestResult/</code> 下会出现 <code>coverage.opencover.xml</code>。</p>
+                <p>第二步：装 ReportGenerator 工具（一次性）：</p>
+                <pre><code>dotnet new tool-manifest
+dotnet tool install dotnet-reportgenerator-globaltool</code></pre>
+                <p>第三步：把 XML 渲染成可读的 HTML：</p>
+                <pre><code>dotnet reportgenerator \
+  "-reports:TestResult/coverage.opencover.xml" \
+  "-targetdir:coveragereport" \
+  -reporttypes:Html</code></pre>
+                <p>打开 <code>coveragereport/index.htm</code>，即可在浏览器里看到每个类、每个方法的覆盖情况。</p>
+
+                <h2 id="merge">多测试项目合并</h2>
+                <p>真实项目通常有多个测试工程（单元测试、集成测试、契约测试）。要把它们的结果合并到同一份报告：</p>
+                <pre><code># 1. 第一个项目：输出 JSON
+dotnet test MyLib.UnitTests \
+  /p:CollectCoverage=true \
+  /p:CoverletOutputFormat=json \
+  /p:CoverletOutput=./TestResult/
+
+# 2. 后续项目：合并到上一个 JSON
+dotnet test MyLib.IntegrationTests \
+  /p:CollectCoverage=true \
+  /p:CoverletOutputFormat=json \
+  /p:MergeWith=TestResult/coverage.json \
+  /p:CoverletOutput=./TestResult/
+
+# 3. 最后再转一次 OpenCover 给 ReportGenerator
+dotnet test MyLib.ContractTests \
+  /p:CollectCoverage=true \
+  /p:CoverletOutputFormat="json,opencover" \
+  /p:CoverletOutput=./TestResult/
+
+# 4. 渲染报告
+dotnet reportgenerator \
+  -reports:TestResult/*.xml \
+  -targetdir:coveragereport \
+  -reporttypes:Html</code></pre>
+                <div class="article-note"><code>MergeWith</code> 会把当前结果叠加到指定 JSON；最后一个项目同时输出 <code>json</code> 与 <code>opencover</code>，让 ReportGenerator 能直接吃。</div>
+
+                <h2 id="threshold">阈值与门禁</h2>
+                <p>仅做覆盖率统计没意义——CI 上要卡阈值，没达标直接挂掉。coverlet 支持按行 / 按分支卡阈值：</p>
+                <pre><code>dotnet test MyLib.Tests \
+  /p:CollectCoverage=true \
+  /p:CoverletOutputFormat=opencover \
+  /p:CoverletOutput=./TestResult/ \
+  /p:Threshold=80 \
+  /p:ThresholdType=line \
+  /p:ThresholdStat=total</code></pre>
+                <p>常用参数：</p>
+                <ul>
+                    <li><code>Threshold=80</code>：目标覆盖率 80%</li>
+                    <li><code>ThresholdType=line | branch | method | class</code>：按哪种粒度卡</li>
+                    <li><code>ThresholdStat=total | module | namespace | class | method</code>：在哪一层应用阈值</li>
+                </ul>
+                <div class="article-warning"><strong>阈值别一刀切。</strong>基础设施/通用组件应当要求 80%+，业务实现类可以放宽到 50%；用 <code>ExcludeByAttribute</code> / <code>ExcludeByFile</code> 把生成的代码、迁移文件排除。</div>
+
+                <h2 id="assert">断言库搭配</h2>
+                <p>覆盖率只告诉你"跑了哪些代码"，不告诉你"测得对不对"。建议同时配一个表达力强的断言库：</p>
+                <ul>
+                    <li><strong>xUnit 自带</strong>：<code>Assert.Equal</code>，够用但啰嗦。</li>
+                    <li><strong>FluentAssertions</strong>（社区主流）：<code>result.Should().Be(42)</code>，断言失败时错误信息更友好。</li>
+                    <li><strong>Shouldly</strong>（轻量替代）：与 FluentAssertions 类似但 API 更紧凑。</li>
+                </ul>
+                <pre><code>// FluentAssertions 写法
+result.Should().BeOfType&lt;Order&gt;()
+    .Which.Total.Should().Be(199m);
+
+// xUnit 原生写法
+Assert.IsType&lt;Order&gt;(result);
+Assert.Equal(199m, ((Order)result).Total);</code></pre>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>覆盖率是<strong>信号</strong>，不是<strong>目标</strong>。100% 覆盖也能写出没用的测试。</li>
+                    <li>新写的代码必须在合并前跑过覆盖率；老代码逐步抬阈值，不要一步到位。</li>
+                    <li>把 <code>coveragereport/</code> 加进 <code>.gitignore</code>，避免污染仓库。</li>
+                    <li>CI 上传 <code>coverage.opencover.xml</code> 给 Codecov / Coveralls，可以做趋势图与 PR 评论。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://github.com/coverlet-coverage/coverlet/blob/master/Documentation/MSBuildIntegration.md" target="_blank" rel="noopener noreferrer">coverlet MSBuild 集成文档</a></li>
+                        <li><a href="https://github.com/danielpalme/ReportGenerator" target="_blank" rel="noopener noreferrer">ReportGenerator</a></li>
+                        <li><a href="https://learn.microsoft.com/dotnet/core/testing/" target="_blank" rel="noopener noreferrer">.NET 单元测试官方文档</a></li>
+                        <li><a href="https://github.com/fluentassertions/fluentassertions" target="_blank" rel="noopener noreferrer">FluentAssertions</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#single">单项目最小闭环</a>
+            <a href="#merge">多测试项目合并</a>
+            <a href="#threshold">阈值与门禁</a>
+            <a href="#assert">断言库搭配</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

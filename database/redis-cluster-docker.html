@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>用 Docker Compose 部署 Redis 7 Cluster（3 主 3 从）-范庆林的技术博客</title>
+    <meta name="description" content="用 Docker Compose 部署 Redis 7 Cluster（3 主 3 从）：节点规划、配置文件、初始化集群、客户端接入、故障转移与日常运维。">
+    <meta name="keywords" content="Redis,Cluster,Docker Compose,集群,槽位,故障转移">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/database/redis-cluster-docker.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="用 Docker Compose 部署 Redis 7 Cluster（3 主 3 从）">
+    <meta property="og:description" content="用 Docker Compose 部署 Redis 7 Cluster（3 主 3 从）：节点规划、配置文件、初始化集群、客户端接入、故障转移与日常运维。">
+    <meta property="og:url" content="https://fanqinglin.com/database/redis-cluster-docker.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="用 Docker Compose 部署 Redis 7 Cluster（3 主 3 从）">
+    <meta name="twitter:description" content="用 Docker Compose 部署 Redis 7 Cluster（3 主 3 从）：节点规划、配置文件、初始化集群、客户端接入、故障转移与日常运维。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/database/redis-cluster-docker.html",
+        "description": "用 Docker Compose 部署 Redis 7 Cluster（3 主 3 从）：节点规划、配置文件、初始化集群、客户端接入、故障转移与日常运维。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#plan">节点规划</a><a href="#compose">compose 编写</a><a href="#init">初始化集群</a><a href="#verify">验证</a><a href="#failover">故障转移</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / 数据库 / Redis</div>
+                <span class="article-kicker">Database · Redis Cluster</span>
+                <h1>用 Docker Compose 部署 Redis 7 Cluster（3 主 3 从）</h1>
+                <p class="article-deck">从一张拓扑图到能 ping 通的 6 节点集群，覆盖初始化、客户端接入、故障切换演示。</p>
+                <div class="article-meta">
+                    <span>Redis 7.x</span>
+                    <span>Docker Compose</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="plan">节点规划</h2>
+                <p>最小可用 Redis Cluster 是 <strong>3 主 3 从</strong>。Redis Cluster 把 16384 个 slot 平均分给 3 个 master，每个 master 配 1 个从做高可用。</p>
+                <pre><code>节点         IP              端口 (client / bus)     角色
+redis01    172.21.0.2     6666 / 17001             master
+redis02    172.21.0.3     6667 / 17002             master
+redis03    172.21.0.4     6668 / 17003             master
+redis04    172.21.0.5     6669 / 17004             slave  → redis01
+redis05    172.21.0.6     6670 / 17005             slave  → redis02
+redis06    172.21.0.7     6671 / 17006             slave  → redis03</code></pre>
+                <p>端口分两类：</p>
+                <ul>
+                    <li><strong>client port</strong>（如 6379）：给应用连接</li>
+                    <li><strong>cluster bus port</strong>（默认 +10000，如 16379）：节点间 gossip 通信，必须开放</li>
+                </ul>
+
+                <h2 id="compose">compose 编写</h2>
+                <p>所有 6 个节点共用一份 redis.conf（内容相同，运行时由启动命令加 <code>--port</code> 区分）。先建 <code>redis.conf</code>：</p>
+                <pre><code># 集群模式
+cluster-enabled yes
+cluster-config-file nodes.conf
+cluster-node-timeout 5000
+
+# 节点对外宣告（容器网络下必须显式指定）
+cluster-announce-ip 172.21.0.2       # 每个节点不同
+cluster-announce-port 6379           # 每个节点不同
+cluster-announce-bus-port 16379      # 每个节点不同
+
+# 持久化
+appendonly yes
+appendfsync everysec
+
+# 安全（生产环境必开）
+requirepass &lt;REPLACE_WITH_STRONG_PASSWORD&gt;
+masterauth  &lt;REPLACE_WITH_STRONG_PASSWORD&gt;</code></pre>
+                <div class="article-warning"><strong>密码与 IP 必须替换。</strong>原 Memo 中的内网 IP（172.21.0.0/16）与硬编码弱密码（1qaz2wsx）只能用于本地学习；生产环境必须改成强密码与实际可路由的 IP。</div>
+                <p>docker-compose.yml：</p>
+                <pre><code>version: "3.8"
+
+services:
+  redis01:
+    image: redis:7.2-alpine
+    container_name: redis01
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./conf/redis01.conf:/usr/local/etc/redis/redis.conf
+      - redis01-data:/data
+    ports:
+      - "6666:6379"
+      - "17001:16379"
+    networks:
+      cluster_net:
+        ipv4_address: 172.21.0.2
+
+  redis02:
+    image: redis:7.2-alpine
+    container_name: redis02
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./conf/redis02.conf:/usr/local/etc/redis/redis.conf
+      - redis02-data:/data
+    ports: [ "6667:6379", "17002:16379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.3 } }
+
+  redis03:
+    image: redis:7.2-alpine
+    container_name: redis03
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes: [ "./conf/redis03.conf:/usr/local/etc/redis/redis.conf", "redis03-data:/data" ]
+    ports: [ "6668:6379", "17003:16379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.4 } }
+
+  redis04:
+    image: redis:7.2-alpine
+    container_name: redis04
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes: [ "./conf/redis04.conf:/usr/local/etc/redis/redis.conf", "redis04-data:/data" ]
+    ports: [ "6669:6379", "17004:16379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.5 } }
+
+  redis05:
+    image: redis:7.2-alpine
+    container_name: redis05
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes: [ "./conf/redis05.conf:/usr/local/etc/redis/redis.conf", "redis05-data:/data" ]
+    ports: [ "6670:6379", "17005:16379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.6 } }
+
+  redis06:
+    image: redis:7.2-alpine
+    container_name: redis06
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes: [ "./conf/redis06.conf:/usr/local/etc/redis/redis.conf", "redis06-data:/data" ]
+    ports: [ "6671:6379", "17006:16379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.7 } }
+
+networks:
+  cluster_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  redis01-data: {}
+  redis02-data: {}
+  redis03-data: {}
+  redis04-data: {}
+  redis05-data: {}
+  redis06-data: {}</code></pre>
+
+                <h2 id="init">初始化集群</h2>
+                <p>启动所有节点：</p>
+                <pre><code>docker compose up -d</code></pre>
+                <p>进入任一节点，把 6 个节点组成 cluster：</p>
+                <pre><code>docker exec -it redis01 bash
+
+# Redis 7 用 redis-cli 直接 create，--cluster-replicas 1 表示每个 master 1 个 slave
+redis-cli --cluster create \
+  172.21.0.2:6379 172.21.0.3:6379 172.21.0.4:6379 \
+  172.21.0.5:6379 172.21.0.6:6379 172.21.0.7:6379 \
+  --cluster-replicas 1 \
+  -a &lt;REPLACE_WITH_STRONG_PASSWORD&gt;</code></pre>
+                <p>看到 <code>Can I set the above configuration? (type 'yes' to accept)</code> 时输入 <code>yes</code>。最后一行应类似 <code>[OK] All 16384 slots covered</code>。</p>
+                <div class="article-note">若忘了密码或 IP 写错，删掉 <code>redis*-data</code> 卷重来：<code>docker compose down -v</code>。</div>
+
+                <h2 id="verify">验证</h2>
+                <pre><code>docker exec -it redis01 redis-cli -a &lt;PASSWORD&gt; cluster info
+# cluster_state:ok
+# cluster_slots_assigned:16384
+# cluster_known_nodes:6
+# cluster_size:3
+
+docker exec -it redis01 redis-cli -a &lt;PASSWORD&gt; cluster nodes</code></pre>
+                <p>每个 master 应带一个 <code>slave</code> 标记的节点。写入测试：</p>
+                <pre><code>redis-cli -c -h 172.21.0.2 -a &lt;PASSWORD&gt; set hello world
+# -&gt; Redirected to slot [866] located at 172.21.0.3:6379
+# OK
+redis-cli -c -h 172.21.0.2 -a &lt;PASSWORD&gt; get hello
+# "world"</code></pre>
+                <p><code>-c</code> 表示 cluster 模式：客户端会自动按 slot 跳转到对应 master。</p>
+
+                <h2 id="client">客户端接入</h2>
+                <p>应用端用任意 Redis 客户端时，<strong>任意节点 IP 都能连</strong>，客户端库会自动跳转 slot：</p>
+                <pre><code>// Java (Lettuce)
+RedisClusterClient.create(
+    ClientResources.create(),
+    RedisURI.create("redis://:&lt;PASSWORD&gt;@172.21.0.2:6379"),
+    RedisURI.create("redis://:&lt;PASSWORD&gt;@172.21.0.3:6379"),
+    RedisURI.create("redis://:&lt;PASSWORD&gt;@172.21.0.4:6379"),
+    RedisURI.create("redis://:&lt;PASSWORD&gt;@172.21.0.5:6379"),
+    RedisURI.create("redis://:&lt;PASSWORD&gt;@172.21.0.6:6379"),
+    RedisURI.create("redis://:&lt;PASSWORD&gt;@172.21.0.7:6379")
+);</code></pre>
+                <pre><code># Python (redis-py)
+from redis.cluster import RedisCluster
+rc = RedisCluster(
+    host="172.21.0.2", port=6379,
+    password="&lt;PASSWORD&gt;",
+    startup_nodes=[
+        {"host": "172.21.0.2", "port": 6379},
+        {"host": "172.21.0.3", "port": 6379},
+        {"host": "172.21.0.4", "port": 6379},
+    ],
+)
+rc.set("foo", "bar")</code></pre>
+                <div class="article-warning">客户端 <strong>不</strong>要写死节点 IP。建议用 DNS / 服务发现，或者把全部 6 个节点都列在 <code>startup_nodes</code>，客户端会自动选最优。</div>
+
+                <h2 id="failover">故障转移演示</h2>
+                <p>手动让 redis01（master）下线：</p>
+                <pre><code>docker stop redis01</code></pre>
+                <p>等 5–10 秒后查看集群状态：</p>
+                <pre><code>docker exec redis02 redis-cli -a &lt;PASSWORD&gt; cluster nodes</code></pre>
+                <p>原本 redis01 的 slave（redis04）会被晋升为新 master，状态类似 <code>master</code>。把 redis01 启动回来，它会以 slave 身份加入集群：</p>
+                <pre><code>docker start redis01</code></pre>
+
+                <h2 id="ops">日常运维</h2>
+                <ul>
+                    <li>扩缩容：<code>redis-cli --cluster add-node</code> / <code>--cluster reshard</code>。</li>
+                    <li>备份：<code>BGSAVE</code> 落到 AOF/RDB，跨节点复制到异地。</li>
+                    <li>慢查询：<code>SLOWLOG GET 10</code>。</li>
+                    <li>内存水位：<code>INFO memory</code> 看 <code>used_memory_human</code>，超过 70% 警惕。</li>
+                </ul>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>至少 3 主 3 从，单 master 集群无法高可用。</li>
+                    <li><strong>不要</strong>在 cluster 模式下用 <code>SELECT</code>、<code>KEYS *</code>、<code>MULTI</code> 跨 slot 事务——会被路由打散。</li>
+                    <li>大批量写入（rehash / migration）走 <code>--cluster reshard</code>，不要靠客户端 hash tag 强制。</li>
+                    <li>数据迁移前先在 redis 6+ 用 <code>RIOT</code> / redis 7 自带的 <code>MIGRATE ... AUTH</code>。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://redis.io/docs/operate/oss_and_stack/reference/cluster-spec/" target="_blank" rel="noopener noreferrer">Redis Cluster Specification</a></li>
+                        <li><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/docker-compose/" target="_blank" rel="noopener noreferrer">官方 docker-compose 部署</a></li>
+                        <li><a href="https://redis.io/docs/latest/commands/cluster-info/" target="_blank" rel="noopener noreferrer">CLUSTER INFO 命令</a></li>
+                        <li><a href="https://redis.io/docs/latest/operate/oss_and_stack/reference/scaling/" target="_blank" rel="noopener noreferrer">扩缩容指南</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#plan">节点规划</a>
+            <a href="#compose">compose 编写</a>
+            <a href="#init">初始化集群</a>
+            <a href="#verify">验证</a>
+            <a href="#client">客户端接入</a>
+            <a href="#failover">故障转移</a>
+            <a href="#ops">日常运维</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

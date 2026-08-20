@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>用反射把集合转为 DataTable：Nullable 类型与 DBNull 的正确处理方式-范庆林的技术博客</title>
+    <meta name="description" content="用反射把 IEnumerable&lt;T&gt; 转为 DataTable：正确处理 Nullable&lt;T&gt;、处理 DBNull 与 null、提供单元测试与缓存优化。">
+    <meta name="keywords" content="反射,IEnumerable,DataTable,Nullable,DBNull,.NET,类型转换">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/csharp/enumerable-to-datatable.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="用反射把集合转为 DataTable：Nullable 类型与 DBNull 的正确处理方式">
+    <meta property="og:description" content="用反射把 IEnumerable&lt;T&gt; 转为 DataTable：正确处理 Nullable&lt;T&gt;、处理 DBNull 与 null、提供单元测试与缓存优化。">
+    <meta property="og:url" content="https://fanqinglin.com/csharp/enumerable-to-datatable.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="用反射把集合转为 DataTable：Nullable 类型与 DBNull 的正确处理方式">
+    <meta name="twitter:description" content="用反射把 IEnumerable&lt;T&gt; 转为 DataTable：正确处理 Nullable&lt;T&gt;、处理 DBNull 与 null、提供单元测试与缓存优化。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/csharp/enumerable-to-datatable.html",
+        "description": "用反射把 IEnumerable&lt;T&gt; 转为 DataTable：正确处理 Nullable&lt;T&gt;、处理 DBNull 与 null、提供单元测试与缓存优化。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#intro">需求</a><a href="#impl">实现</a><a href="#pitfalls">坑点</a><a href="#test">测试</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / C# / .NET / 数据</div>
+                <span class="article-kicker">C# · Reflection</span>
+                <h1>用反射把集合转为 DataTable：Nullable 类型与 DBNull 的正确处理方式</h1>
+                <p class="article-deck">把 <code>IEnumerable&lt;T&gt;</code> 转 <code>DataTable</code> 时，<code>Nullable&lt;T&gt;</code> 要取底层类型、null 要映射到 <code>DBNull.Value</code>。一篇文章搞定两件事。</p>
+                <div class="article-meta">
+                    <span>.NET 6+</span>
+                    <span>Reflection</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="intro">需求</h2>
+                <p>把 <code>IEnumerable&lt;T&gt;</code> 转成 <code>DataTable</code> 常见于老项目对接：</p>
+                <ul>
+                    <li>用 <code>SqlBulkCopy</code> 把 DTO 列表批量写入数据库</li>
+                    <li>用 <code>DataSet</code> 喂给报表控件（旧 RDLC、FastReport）</li>
+                    <li>把对象导出为 CSV / Excel（NPOI）</li>
+                </ul>
+
+                <h2 id="impl">完整实现</h2>
+                <pre><code>using System.Data;
+using System.Reflection;
+
+public static class EnumerableToDataTable
+{
+    public static DataTable ToDataTable&lt;T&gt;(this IEnumerable&lt;T&gt; source)
+    {
+        var dt = new DataTable(typeof(T).Name);
+
+        var props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+        // 第一步：根据属性创建列
+        foreach (var p in props)
+        {
+            var colType = p.PropertyType;
+            // Nullable&lt;T&gt; 取底层类型
+            if (colType.IsGenericType &amp;&amp; colType.GetGenericTypeDefinition() == typeof(Nullable&lt;&gt;))
+                colType = Nullable.GetUnderlyingType(colType)!;
+            dt.Columns.Add(p.Name, colType);
+        }
+
+        // 第二步：填充数据
+        foreach (var item in source)
+        {
+            var row = dt.NewRow();
+            foreach (var p in props)
+            {
+                var v = p.GetValue(item);
+                row[p.Name] = v ?? DBNull.Value;     // null → DBNull
+            }
+            dt.Rows.Add(row);
+        }
+        return dt;
+    }
+}</code></pre>
+                <p>使用：</p>
+                <pre><code>var people = new[]
+{
+    new { Id = 1, Name = "Alice", Birth = new DateTime(1990, 1, 1) },
+    new { Id = 2, Name = "Bob",   Birth = (DateTime?)null },
+};
+
+var dt = people.ToDataTable();</code></pre>
+
+                <h2 id="pitfalls">容易踩的三个坑</h2>
+
+                <h3>1. <code>Nullable&lt;T&gt;</code> 没取底层类型</h3>
+                <p>如果直接用 <code>p.PropertyType</code> 作为列类型，<code>DateTime?</code> 字段在 <code>DataTable</code> 里会变成 <code>Nullable&lt;DateTime&gt;</code>（依然 OK）。但<strong>混用</strong>：类里有 <code>DateTime?</code> 又有 <code>int</code> 时：</p>
+                <ul>
+                    <li>用底层类型 <code>DateTime</code> 列，可以存 <code>DBNull</code> 与非空值；</li>
+                    <li>用 <code>Nullable&lt;DateTime&gt;</code> 列也行——<code>DataTable</code> 内部对 <code>Nullable&lt;T&gt;</code> 是支持的。</li>
+                </ul>
+                <p>关键是要<strong>显式取底层类型</strong>，否则对接 <code>SqlBulkCopy</code> 时某些数据库驱动会拒绝 <code>Nullable&lt;T&gt;</code> 列。</p>
+
+                <h3>2. <code>null</code> 没转 <code>DBNull.Value</code></h3>
+                <p>DataRow 的列不接受 C# 的 <code>null</code>，必须用 <code>DBNull.Value</code>。否则：</p>
+                <pre><code>row[p.Name] = v ?? DBNull.Value;   // ✅ 正确
+row[p.Name] = v;                    // ❌ "The value for Column ... is DBNull."</code></pre>
+
+                <h3>3. 用匿名类型时反射拿不到属性</h3>
+                <p>匿名类型 <code>new { Id = 1, ... }</code> 在<strong>同一程序集</strong>内反射 <code>GetProperties</code> 是拿得到的（编译器把它们生成成 internal 类型 + 属性）。但跨程序集或动态加载场景会失败——这时改用具名类。</p>
+
+                <h2 id="optimize">性能优化</h2>
+                <p>反射取属性列表每次都走 <code>GetProperties</code>，大数据量（百万级）会变慢。两种优化：</p>
+
+                <h3>缓存属性</h3>
+                <pre><code>private static readonly ConcurrentDictionary&lt;Type, PropertyInfo[]&gt; _cache = new();
+
+static PropertyInfo[] GetProps(Type t) =&gt;
+    _cache.GetOrAdd(t, type =&gt; type.GetProperties(BindingFlags.Public | BindingFlags.Instance));</code></pre>
+
+                <h3>委托代替 <code>GetValue</code></h3>
+                <pre><code>// 编译期把 (T, PropertyInfo) 转成 (T) → object
+static Func&lt;T, object&gt; MakeGetter&lt;T&gt;(PropertyInfo p)
+{
+    var param = Expression.Parameter(typeof(T));
+    var access = Expression.Property(param, p);
+    return Expression.Lambda&lt;Func&lt;T, object&gt;&gt;(
+        Expression.Convert(access, typeof(object)), param).Compile();
+}</code></pre>
+
+                <h2 id="test">单元测试</h2>
+                <pre><code>[Fact]
+public void Should_Handle_Nullable_And_Nulls()
+{
+    var src = new[]
+    {
+        new Person { Id = 1, Name = "A", Birth = new DateTime(2000, 1, 1) },
+        new Person { Id = 2, Name = "B", Birth = null },
+    };
+
+    var dt = src.ToDataTable();
+
+    Assert.Equal(2, dt.Rows.Count);
+    Assert.Equal(typeof(int), dt.Columns["Id"].DataType);
+    Assert.Equal(typeof(DateTime), dt.Columns["Birth"].DataType);
+
+    Assert.Equal(DBNull.Value, dt.Rows[1]["Birth"]);
+}
+
+record Person { public int Id; public string Name; public DateTime? Birth; }</code></pre>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>用 <code>Nullable.GetUnderlyingType</code> 取底层类型，列类型统一一致。</li>
+                    <li>始终 <code>v ?? DBNull.Value</code>，不要相信调用方会过滤 null。</li>
+                    <li>大数据量场景：缓存属性 + 用表达式树生成 getter。</li>
+                    <li>导出 <code>SqlBulkCopy</code> 前关闭 <code>DataTable</code> 的约束 / 索引，避免写库时再做无意义的校验。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://learn.microsoft.com/dotnet/api/system.data.datatable" target="_blank" rel="noopener noreferrer">DataTable API</a></li>
+                        <li><a href="https://learn.microsoft.com/dotnet/api/system.reflection.bindingflags" target="_blank" rel="noopener noreferrer">Reflection BindingFlags</a></li>
+                        <li><a href="https://learn.microsoft.com/dotnet/api/system.linq.expressions.expression" target="_blank" rel="noopener noreferrer">Expression 树</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#intro">需求</a>
+            <a href="#impl">完整实现</a>
+            <a href="#pitfalls">坑点</a>
+            <a href="#optimize">性能优化</a>
+            <a href="#test">单元测试</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

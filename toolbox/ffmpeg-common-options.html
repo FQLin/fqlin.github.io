@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FFmpeg 常用命令速查（基于 FFmpeg 7.x）-范庆林的技术博客</title>
+    <meta name="description" content="FFmpeg 7.x 常用命令场景化速查：转码、截取、裁剪缩放、截图、音频、元数据与流选择，每个场景给可直接使用的命令。">
+    <meta name="keywords" content="FFmpeg,转码,截取,裁剪,缩放,截图,音频,元数据,流选择,命令速查">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/toolbox/ffmpeg-common-options.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="FFmpeg 常用命令速查（基于 FFmpeg 7.x）">
+    <meta property="og:description" content="FFmpeg 7.x 常用命令场景化速查：转码、截取、裁剪缩放、截图、音频、元数据与流选择，每个场景给可直接使用的命令。">
+    <meta property="og:url" content="https://fanqinglin.com/toolbox/ffmpeg-common-options.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="FFmpeg 常用命令速查（基于 FFmpeg 7.x）">
+    <meta name="twitter:description" content="FFmpeg 7.x 常用命令场景化速查：转码、截取、裁剪缩放、截图、音频、元数据与流选择，每个场景给可直接使用的命令。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/toolbox/ffmpeg-common-options.html",
+        "description": "FFmpeg 7.x 常用命令场景化速查：转码、截取、裁剪缩放、截图、音频、元数据与流选择，每个场景给可直接使用的命令。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#scenes">场景速查</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / 工具箱 / 音视频</div>
+                <span class="article-kicker">Toolbox · Audio / Video</span>
+                <h1>FFmpeg 常用命令速查</h1>
+                <p class="article-deck">按使用场景分组，每个场景给出 1–2 个可直接执行的命令；参数细节请配合官方文档与本机 <code>ffmpeg -h</code> 查阅。</p>
+                <div class="article-meta">
+                    <span>基于 FFmpeg 7.x</span>
+                    <span>2026-08-03 重写</span>
+                    <span>命令行</span>
+                    <span>音视频</span>
+                </div>
+                <div class="article-version">
+                    <strong>参考版本：</strong>FFmpeg 7.x（7.0 及后续 7.x 系列）。FFmpeg 持续演进，命令行选项、默认行为与编码器能力可能随版本变化；实际使用请以本机 <code>ffmpeg -version</code> 与 <code>ffmpeg -h full</code> 输出为准。
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="before">开始前</h2>
+                <p>不确定本机有哪些编码器、过滤器或硬件加速时，先查能力再下命令：</p>
+                <pre><code>ffmpeg -version
+ffmpeg -encoders
+ffmpeg -filters
+ffmpeg -hwaccels
+ffmpeg -pix_fmts</code></pre>
+                <p>查看输入文件的流信息：</p>
+                <pre><code>ffprobe -hide_banner input.mp4</code></pre>
+                <div class="article-note"><strong>选项顺序：</strong>输入选项放在对应 <code>-i</code> 之前，输出选项放在输出文件之前。非全局选项默认只作用于紧随其后的文件或流。</div>
+
+                <h2 id="scenes">场景速查</h2>
+
+                <h3 id="remux">场景 1：只换封装，不重新编码</h3>
+                <p>源编码与目标容器兼容时优先用流复制，速度最快、零质量损失。</p>
+                <pre><code>ffmpeg -i input.mkv -map 0 -c copy output.mp4</code></pre>
+                <p>容器不兼容某个流（例如 MP4 不接受某些字幕）时会报错，回到对应场景做转码或单独跳过。</p>
+
+                <h3 id="transcode">场景 2：转成兼容性较好的 H.264 / AAC MP4</h3>
+                <pre><code>ffmpeg -i input.mov \
+  -map 0:v:0 -map 0:a:0? \
+  -c:v libx264 -crf 23 -preset medium \
+  -pix_fmt yuv420p \
+  -c:a aac -b:a 192k \
+  -movflags +faststart output.mp4</code></pre>
+                <ul>
+                    <li><code>?</code> 把音频映射设为可选，源文件没音轨也不会失败。</li>
+                    <li><code>-movflags +faststart</code> 把 MP4 的 moov 原子挪到文件头，便于 Web 渐进播放。</li>
+                    <li><code>libx264</code> 与 <code>libfdk_aac</code> 等编码器是否可用，取决于本机 FFmpeg 的编译配置。</li>
+                </ul>
+
+                <h3 id="trim">场景 3：截取片段</h3>
+                <pre><code># 复制流（快速、起点对齐到关键帧）
+ffmpeg -ss 00:01:30 -i input.mp4 -t 20 -c copy output.mp4
+
+# 重新编码（精确到任意时间点）
+ffmpeg -i input.mp4 -ss 00:01:30 -to 00:01:50 \
+  -c:v libx264 -crf 23 -c:a aac output.mp4</code></pre>
+                <p><code>-ss</code> 在 <code>-i</code> 之前是 demuxer 定位（快），在 <code>-i</code> 之后是 decoder 定位（精确）。</p>
+
+                <h3 id="resize">场景 4：缩放并保持比例</h3>
+                <pre><code>ffmpeg -i input.mp4 -vf "scale=1280:-2" -c:a copy output-720p.mp4</code></pre>
+                <p><code>-2</code> 表示"按源比例计算另一维，并保证结果为偶数"，避免画面被强行拉伸。</p>
+
+                <h3 id="crop-pad">场景 5：裁剪与补边</h3>
+                <pre><code># 裁剪为 1280×720，起点在源坐标 (100, 50)
+ffmpeg -i input.mp4 -vf "crop=1280:720:100:50" output.mp4
+
+# 补成 1920×1080，原画面居中
+ffmpeg -i input.mp4 -vf "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black" output.mp4</code></pre>
+
+                <h3 id="thumbnail">场景 6：在指定时间截一张图</h3>
+                <pre><code>ffmpeg -ss 00:00:08 -i input.mp4 -frames:v 1 -q:v 2 thumbnail.jpg</code></pre>
+                <p>要同时缩放可加 <code>-vf "scale=1280:-2"</code>。</p>
+
+                <h3 id="audio">场景 7：提取 / 移除 / 调整音频</h3>
+                <pre><code># 提取音频并编码为 MP3
+ffmpeg -i input.mp4 -vn -c:a libmp3lame -b:a 192k output.mp3
+
+# 保留视频，移除所有音频
+ffmpeg -i input.mp4 -map 0:v -c:v copy -an silent.mp4
+
+# 音量调整 1.5 倍
+ffmpeg -i input.mp4 -af "volume=1.5" output.mp4</code></pre>
+
+                <h3 id="metadata">场景 8：写入元数据</h3>
+                <pre><code>ffmpeg -i input.mp4 -c copy \
+  -metadata title="演示视频" \
+  -metadata artist="范庆林" \
+  -metadata comment="整理于 2026" output.mp4</code></pre>
+                <p>不同容器支持的元数据字段不同（ID3、QuickTime、Matroska 各有差异），写入后用 <code>ffprobe</code> 校验是否落地。</p>
+
+                <h3 id="streams">场景 9：手动选择流</h3>
+                <pre><code># 选第一个视频流与第一个音频流；音频缺失不报错
+ffmpeg -i input.mkv \
+  -map 0:v:0 -map 0:a:0? \
+  -c:v libx264 -c:a aac output.mp4
+
+# 同时保留全部字幕
+ffmpeg -i input.mkv -map 0 -c copy output.mp4</code></pre>
+                <div class="article-warning"><strong>使用 <code>-map</code> 后将关闭默认的自动流选择。</strong>处理多音轨、多字幕或批处理脚本时务必显式 <code>-map</code>，避免漏选或多选。</div>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <p>参数、默认行为与编码器能力可能随版本变化，使用前请同时核对本机版本。</p>
+                    <ul>
+                        <li><a href="https://ffmpeg.org/ffmpeg.html" target="_blank" rel="noopener noreferrer">FFmpeg 官方命令行文档</a></li>
+                        <li><a href="https://ffmpeg.org/ffmpeg-filters.html" target="_blank" rel="noopener noreferrer">FFmpeg Filters Documentation</a></li>
+                        <li><a href="https://ffmpeg.org/ffmpeg-codecs.html" target="_blank" rel="noopener noreferrer">FFmpeg Codecs Documentation</a></li>
+                        <li><a href="https://ffmpeg.org/ffprobe.html" target="_blank" rel="noopener noreferrer">ffprobe Documentation</a></li>
+                        <li><a href="https://ffmpeg.org/download.html" target="_blank" rel="noopener noreferrer">FFmpeg 下载与发布说明（7.x）</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#before">开始前</a>
+            <a href="#scenes">场景速查</a>
+            <a href="#remux">换封装</a>
+            <a href="#transcode">转码</a>
+            <a href="#trim">截取</a>
+            <a href="#resize">缩放</a>
+            <a href="#crop-pad">裁剪补边</a>
+            <a href="#thumbnail">截图</a>
+            <a href="#audio">音频</a>
+            <a href="#metadata">元数据</a>
+            <a href="#streams">流选择</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

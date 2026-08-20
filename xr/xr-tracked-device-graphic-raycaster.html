@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TrackedDeviceGraphicRaycaster 中文注释版：XR UI 链路的接收端-范庆林的技术博客</title>
+    <meta name="description" content="TrackedDeviceGraphicRaycaster 让 3D 跟踪设备高亮并选中 World Space Canvas 上的 UI 元素；覆盖属性、与 Canvas 的关系、遮挡选项与快速排错清单。">
+    <meta name="keywords" content="TrackedDeviceGraphicRaycaster,XR,World Space Canvas,UI,Unity,中文注释">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/xr/xr-tracked-device-graphic-raycaster.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="TrackedDeviceGraphicRaycaster 中文注释版：XR UI 链路的接收端">
+    <meta property="og:description" content="TrackedDeviceGraphicRaycaster 让 3D 跟踪设备高亮并选中 World Space Canvas 上的 UI 元素；覆盖属性、与 Canvas 的关系、遮挡选项与快速排错清单。">
+    <meta property="og:url" content="https://fanqinglin.com/xr/xr-tracked-device-graphic-raycaster.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="TrackedDeviceGraphicRaycaster 中文注释版：XR UI 链路的接收端">
+    <meta name="twitter:description" content="TrackedDeviceGraphicRaycaster 让 3D 跟踪设备高亮并选中 World Space Canvas 上的 UI 元素；覆盖属性、与 Canvas 的关系、遮挡选项与快速排错清单。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/xr/xr-tracked-device-graphic-raycaster.html",
+        "description": "TrackedDeviceGraphicRaycaster 让 3D 跟踪设备高亮并选中 World Space Canvas 上的 UI 元素；覆盖属性、与 Canvas 的关系、遮挡选项与快速排错清单。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#what">它是什么</a><a href="#props">属性</a><a href="#understand">关键理解</a><a href="#occlusion">遮挡选项</a><a href="#architecture">架构说明</a><a href="#scene">场景配置</a><a href="#troubleshoot">排错清单</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / XR 项目专题 / Unity XR Interaction Toolkit</div>
+                <span class="article-kicker">XR · XRI 3.x</span>
+                <h1>TrackedDeviceGraphicRaycaster 中文注释版：XR UI 链路的接收端</h1>
+                <p class="article-deck">让 XR 控制器射线真正能点到 Unity UI 的关键桥梁。</p>
+                <div class="article-meta">
+                    <span>XRI 3.4.1</span>
+                    <span>2026-08-06 重写</span>
+                    <span>Unity XR</span>
+                    <span>VR 项目专题</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="what">它是什么</h2>
+                <p><code>TrackedDeviceGraphicRaycaster</code> 允许 3D 跟踪设备在 Canvas 上<strong>高亮并选中 UI 元素</strong>。</p>
+                <p>它必须与 <code>Canvas</code> 组件挂在同一个 GameObject 上。</p>
+                <p>一句话定位：</p>
+                <blockquote>它是"让 XR 控制器射线真正能点到 Unity UI"的关键桥梁。</blockquote>
+                <p>如果少了它，即使 Canvas 是 World Space、有 <code>NearFarInteractor</code>、有 <code>XRUIInputModule</code>，也可能点不到按钮。</p>
+
+                <h2 id="props">属性</h2>
+                <table>
+                    <thead><tr><th>属性</th><th>作用</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Ignore Reversed Graphics</code></td><td>射线忽略背向射线源的 Graphic。UI 背面通常不该被点到。</td></tr>
+                        <tr><td><code>Check for 2D Occlusion</code></td><td>2D 对象遮挡 UI 时是否阻挡射线（需 Collider）。</td></tr>
+                        <tr><td><code>Check for 3D Occlusion</code></td><td>3D 对象遮挡 UI 时是否阻挡射线（需 Collider）。</td></tr>
+                        <tr><td><code>Blocking Mask</code></td><td>允许遮挡 UI 的物体层。</td></tr>
+                        <tr><td><code>Raycast Trigger Interaction</code></td><td>Trigger Collider 是否算阻挡。</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="understand">对项目最关键的三个理解</h2>
+                <ol>
+                    <li><strong>它解决的不是"UI 显示"。</strong>它解决的是"射线能不能打到 UI / UI 能不能收到 XR 射线事件 / 悬停点击滚动能不能工作"。</li>
+                    <li><strong>它必须和 Canvas 同物体。</strong>这条特别容易忘。</li>
+                    <li><strong>它和 <code>NearFarInteractor</code> 是配套关系：</strong><br>
+                        <code>NearFarInteractor</code> 发出 XR UI 射线，<code>TrackedDeviceGraphicRaycaster</code> 让 Canvas 接得住。缺一边都不行。</li>
+                </ol>
+
+                <h2 id="occlusion">遮挡选项怎么理解</h2>
+                <table>
+                    <thead><tr><th>选项</th><th>何时开</th><th>代价</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>Check for 3D Occlusion</code></td><td>UI 面板前可能有 3D 模型，希望"前面物体挡住 UI"</td><td>多一次射线检测</td></tr>
+                        <tr><td><code>Check for 2D Occlusion</code></td><td>有 2D 物理对象遮挡 UI</td><td>多一次射线检测</td></tr>
+                        <tr><td><code>Blocking Mask</code></td><td>限定允许遮挡的层</td><td>层不对则挡不住</td></tr>
+                    </tbody>
+                </table>
+                <p>开了 3D 遮挡后模型仍挡不住 UI → 检查模型所在层是否在 <code>Blocking Mask</code> 里。</p>
+
+                <h2 id="architecture">架构说明（人话版）</h2>
+                <p>官方补充：它在一次 UI 射线检测中，会用到：</p>
+                <ul>
+                    <li>EventSystem 维护的"全局共享结果列表"</li>
+                    <li>当前 Raycaster 自己的"本地命中缓存"</li>
+                </ul>
+                <p>EventSystem 把多个 Raycaster 的命中结果汇总到一起，因此不能简单地"全局结果列表第一个命中就是当前 Canvas 该处理的命中"。<code>TrackedDeviceGraphicRaycaster</code> 维护自己的一套本地命中数据，保证当前 Canvas 的判断更准确。</p>
+                <p>这部分对日常使用不是必须掌握，但它解释了：</p>
+                <blockquote>场景里有多个 Canvas、多个射线器时，这个组件仍然能稳定区分"当前该点的是谁"。</blockquote>
+
+                <h2 id="scene">场景配置建议</h2>
+                <table>
+                    <thead><tr><th>场景</th><th>配置</th></tr></thead>
+                    <tbody>
+                        <tr><td>Home 场景</td><td>首页按钮所在的 <code>HomeCanvas</code> 必须挂它；首页始终在头前时可不开复杂遮挡</td></tr>
+                        <tr><td>质量评价 / JND</td><td>面板可能被模型遮挡时考虑开 <code>Check for 3D Occlusion</code>，结合性能与层做测试</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="troubleshoot">快速排错清单</h2>
+                <p>VR 里点不到按钮，依次检查：</p>
+                <ol>
+                    <li>Canvas 是否 <code>World Space</code></li>
+                    <li><code>TrackedDeviceGraphicRaycaster</code> 是否与 Canvas 在同一对象上</li>
+                    <li>场景里是否有 <code>XRUIInputModule</code></li>
+                    <li><code>NearFarInteractor.Enable UI Interaction</code> 是否开启</li>
+                    <li><code>UI Press Input</code> 是否绑定</li>
+                    <li>是否被 3D 物体错误遮挡 / <code>Blocking Mask</code> 配置不当</li>
+                </ol>
+
+                <h2 id="references">参考资料</h2>
+                <ul>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html" target="_blank" rel="noopener noreferrer">XR Interaction Toolkit 手册</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#tracked-device-graphic-raycaster" target="_blank" rel="noopener noreferrer">TrackedDeviceGraphicRaycaster 章节</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#ui-setup" target="_blank" rel="noopener noreferrer">XR UI Setup 章节</a></li>
+                </ul>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#what">它是什么</a>
+            <a href="#props">属性</a>
+            <a href="#understand">关键理解</a>
+            <a href="#occlusion">遮挡选项</a>
+            <a href="#architecture">架构说明</a>
+            <a href="#scene">场景配置</a>
+            <a href="#troubleshoot">排错清单</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

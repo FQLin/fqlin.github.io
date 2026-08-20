@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PKI 与 CSR 入门（上篇）：CSR、PEM、公钥私钥的角色｜范庆林的技术博客</title>
+    <meta name="description" content="PKI 入门上篇：从 CSR 是什么讲起，解释为什么 CSR 必须包含公钥、私钥永远在本地、PEM 编码与 DER 二进制的关系。">
+    <meta name="keywords" content="PKI,CSR,PEM,DER,公钥,私钥,证书签名请求">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/security/pki-csr-basics.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="PKI 与 CSR 入门（上篇）：CSR、PEM、公钥私钥的角色">
+    <meta property="og:description" content="PKI 入门上篇：从 CSR 是什么讲起，解释为什么 CSR 必须包含公钥、私钥永远在本地、PEM 编码与 DER 二进制的关系。">
+    <meta property="og:url" content="https://fanqinglin.com/security/pki-csr-basics.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="PKI 与 CSR 入门（上篇）：CSR、PEM、公钥私钥的角色">
+    <meta name="twitter:description" content="PKI 入门上篇：从 CSR 是什么讲起，解释为什么 CSR 必须包含公钥、私钥永远在本地、PEM 编码与 DER 二进制的关系。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/security/pki-csr-basics.html",
+        "description": "PKI 入门上篇：从 CSR 是什么讲起，解释为什么 CSR 必须包含公钥、私钥永远在本地、PEM 编码与 DER 二进制的关系。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#csr">CSR 是什么</a><a href="#content">CSR 里有什么</a><a href="#workflow">生成流程</a><a href="#pem">PEM 与 DER</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / 安全 / PKI</div>
+                <span class="article-kicker">Security · PKI · CSR 入门</span>
+                <h1>PKI 与 CSR 入门（上篇）：CSR、PEM、公钥私钥的角色</h1>
+                <p class="article-deck">从"什么是 CSR"出发，回答最常见的三个疑问：为什么 CSR 里必须有公钥、为什么私钥永远不能传、PEM 到底是什么。</p>
+                <div class="article-meta">
+                    <span>PKI 基础</span>
+                    <span>X.509 / PEM / OpenSSL</span>
+                    <span>2026-08-13 发布</span>
+                    <span>上篇（共 3 篇）</span>
+                </div>
+                <div class="article-version">
+                    <strong>本文版本：</strong>PKI 入门三篇之上篇，覆盖 CSR 的本质、CSR 文件内容、PEM 编码。中篇讲 X.509 证书与 CA 信任链，下篇讲 CSR 字段、CyberChef 解码、certificate vs license。
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="csr">CSR 是什么</h2>
+                <p>在 <strong>PKI（Public Key Infrastructure，公钥基础设施）</strong> 中，<strong>CSR</strong> 全称 <strong>Certificate Signing Request（证书签名请求）</strong>——向 CA（证书颁发机构）申请数字证书时提交的一段数据文件。</p>
+                <p>它包含你要申请证书的主体信息，以及你生成的公钥。通俗理解：</p>
+                <blockquote>「我要申请一个证书，这是我的基本身份信息和我的公钥，请你（CA）帮我签名一下。」</blockquote>
+
+                <h2 id="content">CSR 文件里有什么</h2>
+                <p>典型内容包括：</p>
+                <ul>
+                    <li><strong>公钥（Public Key）</strong></li>
+                    <li><strong>组织信息</strong>（CN 域名、公司名、国家等）</li>
+                    <li><strong>使用用途信息</strong>（服务器认证、客户端认证等）</li>
+                    <li><strong>生成 CSR 的算法</strong>（RSA / ECC 等元信息）</li>
+                    <li><strong>CSR 的数字签名</strong>（由你的私钥对 CSR 内容签名）</li>
+                </ul>
+                <div class="article-warning">
+                    <strong>注意：</strong>CSR 不包含私钥。私钥永远保留在本地。
+                </div>
+
+                <h2 id="workflow">典型生成流程</h2>
+                <ol>
+                    <li><strong>本地生成密钥对</strong>：私钥本地保存；公钥放入 CSR。</li>
+                    <li><strong>用私钥签名 CSR 内容</strong>。</li>
+                    <li><strong>将 CSR 发送给 CA</strong>。</li>
+                    <li>CA 验证后用 CA 私钥对 CSR 内容签名，生成最终证书。</li>
+                </ol>
+
+                <h2 id="pubkey">为什么 CSR 必须包含公钥</h2>
+                <p>这是 PKI 的核心疑问：为什么不是 CA 替你生成公钥？</p>
+                <h3>私钥永远不能离开本地</h3>
+                <p>私钥是身份凭证，不能传给 CA，也不能上传，只能在本地生成并自己保存。CA 的职责是「认证你的公钥」，而不是「生成你的密钥对」。</p>
+                <h3>CSR 的真正目的</h3>
+                <blockquote>「我这边生成好了一对密钥，这是我的公钥，请你确认并签名，发给我一个证书。」</blockquote>
+                <p>CSR 必须包含公钥，否则 CA 无法把公钥写进证书。</p>
+                <h3>为什么 CSR 要用私钥签名</h3>
+                <p>CSR 文件里的内容会被私钥签名。CA 验证这个签名来确认：</p>
+                <blockquote>「你确实拥有这份公钥对应的私钥。」</blockquote>
+                <p>也就是说：</p>
+                <ul>
+                    <li>公钥在 CSR 里</li>
+                    <li>私钥不在 CSR 里</li>
+                    <li>但 CSR 用私钥签名，证明「这是我的公钥，我有私钥，不是伪造的」</li>
+                </ul>
+
+                <h2 id="return">什么时候会"公钥和私钥一起返回"</h2>
+                <p>实际上<strong>永远不会有任何权威 CA 返回你的私钥</strong>。如果有人给你"私钥 + 证书"，那是非常不安全的做法，只会出现在：</p>
+                <ul>
+                    <li>内部系统的脚本测试环境</li>
+                    <li>某些只用于内部的自动签发工具</li>
+                    <li>某些不安全的自助服务</li>
+                </ul>
+                <p>正规 CA（DigiCert、GlobalSign、Let's Encrypt）绝不会返回私钥。</p>
+
+                <h2 id="pem">PEM 是什么</h2>
+                <p><strong>PEM（Privacy-Enhanced Mail）</strong>是一种文件格式/编码方式，不是专门给 CSR 用的。它是一种：</p>
+                <ul>
+                    <li>Text（文本）</li>
+                    <li>Base64 编码</li>
+                    <li>有头尾标识符的格式</li>
+                </ul>
+                <p>CSR 的 PEM 形如：</p>
+                <pre><code>-----BEGIN CERTIFICATE REQUEST-----
+MIICqDCCAZACAQAw...
+-----END CERTIFICATE REQUEST-----</code></pre>
+                <p>PEM 可表示多种类型：</p>
+                <table>
+                    <thead><tr><th>内容</th><th>头部标记</th></tr></thead>
+                    <tbody>
+                        <tr><td>私钥</td><td><code>-----BEGIN PRIVATE KEY-----</code></td></tr>
+                        <tr><td>公钥</td><td><code>-----BEGIN PUBLIC KEY-----</code></td></tr>
+                        <tr><td>CSR</td><td><code>-----BEGIN CERTIFICATE REQUEST-----</code></td></tr>
+                        <tr><td>X.509 证书</td><td><code>-----BEGIN CERTIFICATE-----</code></td></tr>
+                    </tbody>
+                </table>
+                <p>关系：<code>PEM = Base64(DER)</code>——PEM 是 ASN.1 DER 二进制结构的 Base64 文本包装。</p>
+
+                <h2 id="principles">本篇准则</h2>
+                <ol>
+                    <li><strong>私钥永不外传</strong>——任何让你把私钥发给"客服"或"系统"的请求都是骗局。</li>
+                    <li><strong>CSR 必带公钥</strong>——CA 没有你的公钥就签不出证书。</li>
+                    <li><strong>PEM ≠ DER</strong>——PEM 是 Base64 包装的文本格式，DER 是 ASN.1 二进制结构本身。</li>
+                    <li><strong>CSR / 证书 / 私钥分别用不同 PEM 头</strong>——不要搞混。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://datatracker.ietf.org/doc/html/rfc7468" target="_blank" rel="noopener noreferrer">RFC 7468: Textual Encodings of PKIX, PKCS, and CMS Structures（PEM 格式）</a></li>
+                        <li><a href="https://datatracker.ietf.org/doc/html/rfc2986" target="_blank" rel="noopener noreferrer">RFC 2986: PKCS #10 Certification Request Syntax（CSR 标准）</a></li>
+                        <li><a href="https://datatracker.ietf.org/doc/html/rfc5280" target="_blank" rel="noopener noreferrer">RFC 5280: X.509 PKI Certificate and CRL Profile</a></li>
+                        <li><a href="https://docs.openssl.org/3.0/man1/openssl-req.html" target="_blank" rel="noopener noreferrer">OpenSSL req 命令文档</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#csr">CSR 是什么</a>
+            <a href="#content">CSR 里有什么</a>
+            <a href="#workflow">生成流程</a>
+            <a href="#pubkey">为什么包含公钥</a>
+            <a href="#return">私钥何时返回</a>
+            <a href="#pem">PEM 是什么</a>
+            <a href="#principles">准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

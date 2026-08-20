@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>在 Autofac 中注入 ILogger：构建可复用的 LoggingModule-范庆林的技术博客</title>
+    <meta name="description" content="在 Autofac 中注入 Microsoft.Extensions.Logging.ILogger，构建 LoggingModule：构造函数参数与属性注入两路并行。">
+    <meta name="keywords" content="Autofac,ILogger,LoggingModule,依赖注入,.NET,Microsoft.Extensions.Logging">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/csharp/autofac-logging-module.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="在 Autofac 中注入 ILogger：构建可复用的 LoggingModule">
+    <meta property="og:description" content="在 Autofac 中注入 Microsoft.Extensions.Logging.ILogger，构建 LoggingModule：构造函数参数与属性注入两路并行。">
+    <meta property="og:url" content="https://fanqinglin.com/csharp/autofac-logging-module.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="在 Autofac 中注入 ILogger：构建可复用的 LoggingModule">
+    <meta name="twitter:description" content="在 Autofac 中注入 Microsoft.Extensions.Logging.ILogger，构建 LoggingModule：构造函数参数与属性注入两路并行。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/csharp/autofac-logging-module.html",
+        "description": "在 Autofac 中注入 Microsoft.Extensions.Logging.ILogger，构建 LoggingModule：构造函数参数与属性注入两路并行。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#why">为什么需要</a><a href="#module">实现</a><a href="#register">注册</a><a href="#usage">使用</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / C# / .NET / Autofac</div>
+                <span class="article-kicker">C# · Autofac</span>
+                <h1>在 Autofac 中注入 ILogger：构建可复用的 LoggingModule</h1>
+                <p class="article-deck">把 <code>Microsoft.Extensions.Logging</code> 的 <code>ILogger&lt;T&gt;</code> 自动注入到 Autofac 解析出来的对象里，省去每个类手写构造函数。</p>
+                <div class="article-meta">
+                    <span>.NET 6+</span>
+                    <span>Autofac</span>
+                    <span>Microsoft.Extensions.Logging</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="why">为什么需要 LoggingModule</h2>
+                <p>ASP.NET Core 自带的 <code>ILogger&lt;T&gt;</code> 在控制器里是自动注入的。但项目里往往有非控制器的服务类（领域服务、Repository、事件处理器等），如果也用 Autofac 自己解析，<code>ILogger&lt;T&gt;</code> 默认拿不到——因为 Autofac 不知道 <code>ILogger&lt;T&gt;</code> 怎么构造。</p>
+                <p>LoggingModule 解决两件事：</p>
+                <ol>
+                    <li>从 Autofac 解析 <code>ILogger&lt;T&gt;</code> 时，按 <code>T</code> 的实际类型提供 logger。</li>
+                    <li>对<strong>属性</strong>类型为 <code>ILogger</code> 的可写属性，激活后自动赋值。</li>
+                </ol>
+
+                <h2 id="module">实现</h2>
+                <pre><code>using Autofac;
+using Autofac.Core;
+using Autofac.Core.Registration;
+using Microsoft.Extensions.Logging;
+
+public class LoggingModule : Module
+{
+    private readonly ILoggerFactory _factory;
+
+    public LoggingModule(ILoggerFactory factory) =&gt; _factory = factory;
+
+    protected override void AttachToComponentRegistration(
+        IComponentRegistryBuilder registry,
+        IComponentRegistration registration)
+    {
+        // 构造函数参数：把 ILogger&lt;T&gt; 重定向到 factory
+        registration.Preparing += OnComponentPreparing;
+
+        // 属性注入：把可写的 ILogger 属性激活后赋值
+        registration.Activated += InjectLoggerProperties;
+    }
+
+    private void OnComponentPreparing(object sender, PreparingEventArgs e)
+    {
+        var t = e.Component.Activator.LimitType;
+        e.Parameters = e.Parameters.Union(new[]
+        {
+            new ResolvedParameter(
+                (p, i) =&gt; p.ParameterType.IsGenericType
+                           &amp;&amp; p.ParameterType.GetGenericTypeDefinition() == typeof(ILogger&lt;&gt;),
+                (p, i) =&gt;
+                {
+                    var category = p.ParameterType.GetGenericArguments()[0];
+                    return _factory.CreateLogger(category);
+                }),
+        });
+    }
+
+    private void InjectLoggerProperties(object instance)
+    {
+        var props = instance.GetType()
+            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .Where(p =&gt; p.PropertyType == typeof(ILogger) &amp;&amp; p.CanWrite &amp;&amp; p.GetIndexParameters().Length == 0);
+
+        foreach (var prop in props)
+            prop.SetValue(instance, _factory.CreateLogger(instance.GetType()));
+    }
+}</code></pre>
+                <div class="article-note">原 Memo 用的 log4net <code>ILog</code> 仍是可行的写法（实现思路一致）；这里换成 <code>ILogger&lt;T&gt;</code>，与现代 ASP.NET Core 日志管线直接打通（Serilog / NLog / Application Insights 都是 ILoggerFactory 的实现）。</div>
+
+                <h2 id="register">注册</h2>
+                <pre><code>var builder = WebApplication.CreateBuilder(args);
+
+// 日志工厂由 ASP.NET Core 默认提供，可加任何 ILoggerProvider
+builder.Logging.AddSimpleConsole(o =&gt;
+{
+    o.IncludeScopes = true;
+    o.SingleLine = true;
+});
+
+var factory = LoggerFactory.Create(b =&gt;
+    b.AddSimpleConsole().AddDebug());   // 或者从 builder.Services 拿
+
+builder.Host.ConfigureContainer&lt;ContainerBuilder&gt;(b =&gt;
+{
+    b.RegisterModule(new LoggingModule(factory));
+});</code></pre>
+
+                <h2 id="usage">使用</h2>
+                <p>构造函数注入（推荐）：</p>
+                <pre><code>public class OrderService(ILogger&lt;OrderService&gt; logger)
+{
+    public async Task PlaceAsync(Order order)
+    {
+        logger.LogInformation("Placing order {OrderId}", order.Id);
+        // ...
+    }
+}</code></pre>
+                <p>属性注入（用于不能改构造函数的第三方类型）：</p>
+                <pre><code>public class SomeLegacyService
+{
+    public ILogger Logger { get; set; }   // 由 LoggingModule 自动赋值
+}</code></pre>
+                <p>也支持任何非泛型 <code>ILogger</code>：</p>
+                <pre><code>public class DispatchJob(ILogger logger) { ... }</code></pre>
+
+                <h2 id="verify">验证</h2>
+                <p>启用 scope 让日志带上上下文：</p>
+                <pre><code>using (logger.BeginScope(new Dictionary&lt;string, object&gt; { ["OrderId"] = order.Id }))
+{
+    // 日志会自动带上 OrderId
+}</code></pre>
+                <p>接 Serilog 时也直接生效——在 <code>Program.cs</code> 用 <code>builder.Host.UseSerilog()</code> 替换默认工厂即可。</p>
+
+                <h2 id="pitfalls">常见问题</h2>
+                <ul>
+                    <li><strong>属性名 <code>Logger</code> 冲突</strong>：类里已有其他 logger 字段，会被覆盖。改名为 <code>Logger { get; set; }</code> 即可。</li>
+                    <li><strong>Property 是 <code>ILogger&lt;T&gt;</code></strong>：本模块<strong>不</strong>处理泛型 logger 属性（仅 <code>ILogger</code> 非泛型）。建议直接构造函数注入。</li>
+                    <li><strong>Logger 在子容器里创建</strong>：作用域里的 ILogger 不会自动带上 <code>ILoggerScope</code>。需要 scope 显式 begin。</li>
+                </ul>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>永远优先<strong>构造函数注入</strong>，属性注入只用于无法控制的第三方类。</li>
+                    <li>在构造函数里加 <code>ILogger&lt;TMyClass&gt;</code>，比 <code>ILogger</code> 非泛型更友好——日志自动带上类名。</li>
+                    <li>日志格式用占位符（<code>{OrderId}</code>）而不是字符串拼接——结构化日志能用。</li>
+                    <li>关键链路用 <code>BeginScope</code> 带上下文，CI 出问题才查得动。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://autofac.readthedocs.io/en/latest/advanced/keyed-services.html" target="_blank" rel="noopener noreferrer">Autofac: Module &amp; Activated Event</a></li>
+                        <li><a href="https://learn.microsoft.com/dotnet/core/extensions/loggerfactory-generator" target="_blank" rel="noopener noreferrer">LoggerFactory 源生成</a></li>
+                        <li><a href="https://learn.microsoft.com/dotnet/core/extensions/logging" target="_blank" rel="noopener noreferrer">.NET 日志官方文档</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#why">为什么需要</a>
+            <a href="#module">实现</a>
+            <a href="#register">注册</a>
+            <a href="#usage">使用</a>
+            <a href="#verify">验证</a>
+            <a href="#pitfalls">常见问题</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

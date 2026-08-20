@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Docker 部署 Jenkins：挂载 docker.sock 与持续集成实践-范庆林的技术博客</title>
+    <meta name="description" content="用 Docker 部署 Jenkins LTS，挂载 docker.sock 让 Job 内能跑 docker 命令；初始化、插件镜像加速、备份与升级。">
+    <meta name="keywords" content="Jenkins,Docker,CI,docker.sock,持续集成,镜像加速,部署">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/devops/jenkins-docker-deploy.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Docker 部署 Jenkins：挂载 docker.sock 与持续集成实践">
+    <meta property="og:description" content="用 Docker 部署 Jenkins LTS，挂载 docker.sock 让 Job 内能跑 docker 命令；初始化、插件镜像加速、备份与升级。">
+    <meta property="og:url" content="https://fanqinglin.com/devops/jenkins-docker-deploy.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Docker 部署 Jenkins：挂载 docker.sock 与持续集成实践">
+    <meta name="twitter:description" content="用 Docker 部署 Jenkins LTS，挂载 docker.sock 让 Job 内能跑 docker 命令；初始化、插件镜像加速、备份与升级。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/devops/jenkins-docker-deploy.html",
+        "description": "用 Docker 部署 Jenkins LTS，挂载 docker.sock 让 Job 内能跑 docker 命令；初始化、插件镜像加速、备份与升级。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#start">启动</a><a href="#init">首次访问</a><a href="#plugin">插件加速</a><a href="#pipeline">Pipeline 示例</a><a href="#backup">备份升级</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / DevOps / Jenkins</div>
+                <span class="article-kicker">DevOps · Jenkins</span>
+                <h1>Docker 部署 Jenkins：挂载 docker.sock 与持续集成实践</h1>
+                <p class="article-deck">5 分钟跑起来一个能用的 Jenkins；插件镜像加速；最小 Pipeline 示例；备份与升级。</p>
+                <div class="article-meta">
+                    <span>Jenkins LTS</span>
+                    <span>Docker</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="start">启动</h2>
+                <p>用 LTS 版本（推荐）：</p>
+                <pre><code>docker run -d \
+  --name jenkins \
+  --restart unless-stopped \
+  -u root \
+  -p 8080:8080 \
+  -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  jenkins/jenkins:2.452.3-lts</code></pre>
+                <p>两个端口含义：</p>
+                <ul>
+                    <li><code>8080</code>：Web UI</li>
+                    <li><code>50000</code>：JNLP agent 端口（如启用分布式构建）</li>
+                </ul>
+                <p>两个挂载含义：</p>
+                <ul>
+                    <li><code>jenkins_home</code>：所有配置 / 凭据 / Job 都在这里，必须<strong>命名卷</strong>或宿主机目录</li>
+                    <li><code>/var/run/docker.sock</code>：让 Jenkins Job 里能调用宿主机 docker 命令（DooD 模式）</li>
+                </ul>
+                <div class="article-warning"><strong>docker.sock 是一把双刃剑。</strong>它给 Jenkins 完全的 docker 控制权，相当于让 Jenkins 容器"穿透"到宿主机。安全做法是用 DinD（独立 Docker-in-Docker）sidecar 替代；先这样跑也没问题，但权限范围要清楚。</div>
+
+                <h2 id="init">首次访问与解锁</h2>
+                <p>首次启动会打印管理员密码：</p>
+                <pre><code>docker logs jenkins | grep -A1 "Please use the following"
+# 或
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword</code></pre>
+                <p>浏览器打开 <code>http://localhost:8080</code>，粘贴密码，按提示装推荐插件。装完后建第一个管理员账号。</p>
+
+                <h2 id="plugin">插件镜像加速</h2>
+                <p>国内环境下默认 <code>updates.jenkins.io</code> 慢，改成清华源：</p>
+                <pre><code>docker exec jenkins bash -c '
+  sed -i "s|updates.jenkins.io|mirrors.tuna.tsinghua.edu.cn/jenkins|g" \
+    /var/jenkins_home/hudson.model.UpdateCenter.xml
+  sed -i "s|www.google.com|www.nju.edu.cn|g" \
+    /var/jenkins_home/updates/default.json
+'</code></pre>
+                <p>重启生效：</p>
+                <pre><code>docker restart jenkins</code></pre>
+                <div class="article-note">也可以挂一个自管的 <code>updates.json</code> 进容器，避免每次都改。生产环境建议在内网搭一个 Jenkins 更新代理。</div>
+
+                <h2 id="pipeline">Pipeline 示例</h2>
+                <p>新建 Pipeline Job，把以下脚本粘进去——演示构建、测试、镜像打 tag 三步：</p>
+                <pre><code>pipeline {
+    agent any
+
+    environment {
+        IMAGE = "registry.example.com/myapp"
+        TAG   = "${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps { checkout scm }
+        }
+
+        stage('Build &amp; Test') {
+            steps {
+                sh '''
+                  dotnet restore
+                  dotnet build --no-restore -c Release
+                  dotnet test  --no-build -c Release --logger trx
+                '''
+            }
+        }
+
+        stage('Docker Build &amp; Push') {
+            steps {
+                sh '''
+                  docker build -t ${IMAGE}:${TAG} .
+                  docker push  ${IMAGE}:${TAG}
+                '''
+            }
+        }
+    }
+
+    post {
+        always { junit '**/TestResults/*.trx' }
+        failure { echo '构建失败：' + currentBuild.currentResult }
+    }
+}</code></pre>
+                <p>三个阶段对应最常见的 CI 流程：拿代码 → 编译测试 → 镜像推送。后续接 CD 时再加 stage。</p>
+
+                <h2 id="backup">备份与升级</h2>
+                <p><strong>备份</strong>最简单的方式：备份 <code>jenkins_home</code> 命名卷：</p>
+                <pre><code>docker run --rm \
+  -v jenkins_home:/source:ro \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/jenkins-$(date +%F).tar.gz -C /source .</code></pre>
+                <p><strong>升级</strong>到新 LTS：</p>
+                <pre><code>docker pull jenkins/jenkins:2.462.3-lts
+docker stop jenkins
+docker rename jenkins jenkins-old
+docker run -d --name jenkins ... jenkins/jenkins:2.462.3-lts
+# 验证 OK 后：docker rm jenkins-old</code></pre>
+                <div class="article-warning">升级前<strong>必须</strong>做完整备份；同时检查 <a href="https://www.jenkins.io/doc/upgrade-guide/" target="_blank" rel="noopener noreferrer">官方升级指南</a>，有些大版本需要先升到中间的过渡版本。</div>
+
+                <h2 id="common">常见问题</h2>
+                <ul>
+                    <li><strong>Job 内 docker 命令权限被拒</strong>：确保容器以 <code>-u root</code> 启动，并挂载了 <code>docker.sock</code>。</li>
+                    <li><strong>插件装一半失败</strong>：多半是网络问题。装镜像源后重试，或把 Job 调度到闲置时。</li>
+                    <li><strong>磁盘满</strong>：<code>Manage Jenkins → System Log → /var/jenkins_home/logs</code> 看一下，旧的构建日志 / 制品可以定期清理。</li>
+                </ul>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>永远用 LTS 版本，每周自动发版的 weekly 留给测试尝鲜。</li>
+                    <li><code>jenkins_home</code> 必须挂命名卷或宿主机目录，重建容器不丢数据。</li>
+                    <li>把 <code>docker.sock</code> 视为权限提升：能用就别给，权限边界要清楚。</li>
+                    <li>国内环境第一时间换插件镜像源，否则首次安装几乎必卡。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://www.jenkins.io/doc/book/installing/docker/" target="_blank" rel="noopener noreferrer">Jenkins Docker 官方文档</a></li>
+                        <li><a href="https://www.jenkins.io/doc/book/pipeline/" target="_blank" rel="noopener noreferrer">Pipeline 使用文档</a></li>
+                        <li><a href="https://www.jenkins.io/doc/upgrade-guide/" target="_blank" rel="noopener noreferrer">升级指南</a></li>
+                        <li><a href="https://github.com/jenkinsci/docker" target="_blank" rel="noopener noreferrer">jenkinsci/docker</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#start">启动</a>
+            <a href="#init">首次访问</a>
+            <a href="#plugin">插件加速</a>
+            <a href="#pipeline">Pipeline 示例</a>
+            <a href="#backup">备份升级</a>
+            <a href="#common">常见问题</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

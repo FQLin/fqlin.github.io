@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CSS 美化 input type=file 按钮：从 IE hack 到现代替代方案（已 EOL，仅作历史归档）｜范庆林的技术博客</title>
+    <meta name="description" content="美化 input type=file 按钮的经典 IE hack（filter:alpha(opacity=0)）在现代浏览器下已不需要；本文给出 2024 年的纯 CSS / JS / 库三种替代方案。">
+    <meta name="keywords" content="CSS,input,file,IE hack,opacity,按钮美化,前端">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/frontend/css-input-file-style-history.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="CSS 美化 input type=file 按钮：从 IE hack 到现代替代方案（已 EOL，仅作历史归档）">
+    <meta property="og:description" content="美化 input type=file 按钮的经典 IE hack（filter:alpha(opacity=0)）在现代浏览器下已不需要；本文给出 2024 年的纯 CSS / JS / 库三种替代方案。">
+    <meta property="og:url" content="https://fanqinglin.com/frontend/css-input-file-style-history.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="CSS 美化 input type=file 按钮：从 IE hack 到现代替代方案（已 EOL，仅作历史归档）">
+    <meta name="twitter:description" content="美化 input type=file 按钮的经典 IE hack（filter:alpha(opacity=0)）在现代浏览器下已不需要；本文给出 2024 年的纯 CSS / JS / 库三种替代方案。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/frontend/css-input-file-style-history.html",
+        "description": "美化 input type=file 按钮的经典 IE hack（filter:alpha(opacity=0)）在现代浏览器下已不需要；本文给出 2024 年的纯 CSS / JS / 库三种替代方案。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#orig">老代码</a><a href="#pure">纯 CSS</a><a href="#js">JS 拦截</a><a href="#alt">现代替代</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / 前端 / CSS / 表单美化</div>
+                <span class="article-kicker">前端 · CSS · 历史归档</span>
+                <h1>CSS 美化 input type=file 按钮：从 IE hack 到现代替代方案</h1>
+                <p class="article-deck">IE 时代的 `filter:alpha(opacity=0)` + `*display:inline` 透明覆盖方案已成为历史；本文给出纯 CSS / JS / 库三种现代替代。</p>
+                <div class="article-meta">
+                    <span>IE 6-11 兼容</span>
+                    <span>现代浏览器</span>
+                    <span>2026-08-11 发布</span>
+                </div>
+                <div class="article-version">
+                    <strong>版本声明：</strong>原文基于 IE 6-11 时代的"label 包 input + 半透明覆盖"方案。
+                    现代浏览器已不再需要 IE hack，<code>accent-color</code>、<code>:has()</code>、<code>appearance: none</code> 等现代 CSS 特性让文件按钮可以原生化。
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="orig">原始代码（IE 时代）</h2>
+
+                <h3>1. DOM 结构</h3>
+                <pre><code class="language-html">&lt;a href="javascript:;" class="a-upload"&gt;
+    &lt;input type="file" name="" id=""&gt;点击这里上传文件
+&lt;/a&gt;
+
+&lt;a href="javascript:;" class="file"&gt;选择文件
+    &lt;input type="file" name="" id=""&gt;
+&lt;/a&gt;</code></pre>
+                <p>原理：用 <code>&lt;a&gt;</code> 作为"按钮视觉"，把真正的 <code>&lt;input&gt;</code> 用 position absolute 全覆盖在上层并设为透明。</p>
+
+                <h3>2. CSS 样式 1（灰底）</h3>
+                <pre><code class="language-css">.a-upload {
+    padding: 4px 10px;
+    height: 20px;
+    line-height: 20px;
+    position: relative;
+    cursor: pointer;
+    color: #888;
+    background: #fafafa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+    display: inline-block;
+    *display: inline;       /* IE 7 hack */
+    *zoom: 1                /* IE 7 hack */
+}
+
+.a-upload  input {
+    position: absolute;
+    font-size: 100px;
+    /* 设置了 input 宽度后，cursor 属性将不会起作用，需要 font-size:0 */
+    font-size: 0;
+    right: 0;
+    top: 0;
+    opacity: 0;
+    filter: alpha(opacity=0);  /* IE 8 hack */
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+}
+
+.a-upload:hover {
+    color: #444;
+    background: #eee;
+    border-color: #ccc;
+    text-decoration: none;
+}</code></pre>
+
+                <h3>3. CSS 样式 2（蓝底）</h3>
+                <pre><code class="language-css">.file {
+    position: relative;
+    display: inline-block;
+    background: #D0EEFF;
+    border: 1px solid #99D3F5;
+    border-radius: 4px;
+    padding: 4px 12px;
+    overflow: hidden;
+    color: #1E88C7;
+    text-decoration: none;
+    text-indent: 0;
+    line-height: 20px;
+}
+
+.file input {
+    position: absolute;
+    font-size: 100px;
+    right: 0;
+    top: 0;
+    opacity: 0;
+}
+
+.file:hover {
+    background: #AADFFD;
+    border-color: #78C3F3;
+    color: #004974;
+}</code></pre>
+
+                <h3>4. jQuery 显示文件名</h3>
+                <pre><code class="language-javascript">$(".a-upload").on("change", "input[type='file']", function () {
+    var filePath = $(this).val();
+    if (filePath.indexOf("jpg") !== -1 || filePath.indexOf("png") !== -1) {
+        $(".fileerrorTip").html("").hide();
+        var arr = filePath.split('\\');
+        var fileName = arr[arr.length - 1];
+        $(".showFileName").html(fileName);
+    } else {
+        $(".showFileName").html("");
+        $(".fileerrorTip").html("您未上传文件，或者您上传文件类型有误！").show();
+        return false;
+    }
+});</code></pre>
+
+                <div class="article-warning">
+                    <strong>三个 IE hack 已不再需要：</strong>
+                    <ol>
+                        <li><code>*display: inline; *zoom: 1</code>——IE 7 专属，IE 11 已退役，Edge / Chrome / Firefox 全部原生支持 <code>display: inline-block</code>。</li>
+                        <li><code>filter: alpha(opacity=0)</code>——IE 8 专属；现代 <code>opacity: 0</code> 已统一。</li>
+                        <li><code>font-size: 100px</code> 技巧——是为了触发 IE 点击区域，现代浏览器不需要，<code>opacity: 0</code> 即可保持点击。</li>
+                    </ol>
+                </div>
+
+                <h2 id="pure">方案 1：纯 CSS（&lt;label&gt; 包裹）</h2>
+                <p>最简单、最现代的方式——用 <code>&lt;label&gt;</code> 包裹，把样式写在 <code>label</code> 上：</p>
+                <pre><code class="language-html">&lt;label class="upload-btn"&gt;
+  &lt;input type="file" hidden&gt;选择文件
+&lt;/label&gt;
+
+&lt;label class="upload-btn primary"&gt;
+  &lt;input type="file" hidden multiple&gt;批量上传
+&lt;/label&gt;</code></pre>
+                <pre><code class="language-css">.upload-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 4px;
+    background: #fafafa;
+    border: 1px solid #ddd;
+    color: #444;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.upload-btn:hover {
+    background: #eee;
+    border-color: #ccc;
+}
+
+.upload-btn.primary {
+    background: #1e88c7;
+    border-color: #78c3f3;
+    color: white;
+}
+
+.upload-btn.primary:hover {
+    background: #006cb0;
+    color: white;
+}
+
+/* 自定义 input 选中后的文件名显示 */
+.upload-btn::after {
+    content: attr(data-filename);
+    margin-left: 8px;
+    color: #888;
+    font-style: italic;
+}</code></pre>
+
+                <h3>文件名显示（不用 jQuery）</h3>
+                <pre><code class="language-javascript">document.querySelectorAll('input[type=file]').forEach(input =&gt; {
+    input.addEventListener('change', () =&gt; {
+        const label = input.closest('label');
+        const fileName = input.files[0]?.name ?? '';
+        label.setAttribute('data-filename', fileName);
+        label.classList.toggle('has-file', !!fileName);
+    });
+});</code></pre>
+
+                <h2 id="js">方案 2：JS 完全自定义按钮</h2>
+                <p>需要文件类型图标、缩略图预览、进度条等高级 UI：</p>
+                <pre><code class="language-html">&lt;div class="file-picker" data-picker&gt;
+    &lt;button type="button" class="picker-trigger"&gt;
+        &lt;span class="picker-icon"&gt;选择文件&lt;/span&gt;
+        &lt;span class="picker-filename"&gt;未选择任何文件</code></pre>
+                <pre><code class="language-javascript">class FilePicker extends HTMLElement {
+    connectedCallback() {
+        this.trigger = this.querySelector('.picker-trigger');
+        this.filename = this.querySelector('.picker-filename');
+        this.fileInput = document.createElement('input');
+        this.fileInput.type = 'file';
+        this.fileInput.hidden = true;
+
+        this.appendChild(this.fileInput);
+        this.trigger.addEventListener('click', () =&gt; this.fileInput.click());
+        this.fileInput.addEventListener('change', () =&gt; {
+            const file = this.fileInput.files[0];
+            if (file) {
+                this.filename.textContent = `${file.name} (${this.formatSize(file.size)})`;
+                this.dispatchEvent(new CustomEvent('file-selected', {
+                    detail: { file },
+                    bubbles: true
+                }));
+            }
+        });
+    }
+
+    formatSize(bytes) {
+        if (bytes &lt; 1024) return `${bytes} B`;
+        if (bytes &lt; 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+    }
+}
+
+customElements.define('file-picker', FilePicker);</code></pre>
+
+                <h2 id="accent">方案 3：现代浏览器原生 accent-color</h2>
+                <p>现代浏览器支持 <code>accent-color</code>，可以一键统一表单元素的颜色：</p>
+                <pre><code class="language-css">:root {
+    accent-color: #1e88c7;
+}</code></pre>
+                <p>适用元素：</p>
+                <ul>
+                    <li><code>&lt;input type="checkbox"&gt;</code>、<code>&lt;input type="radio"&gt;</code></li>
+                    <li><code>&lt;input type="range"&gt;</code>（滑块）</li>
+                    <li><code>&lt;progress&gt;</code>（进度条）</li>
+                </ul>
+                <p>注意：<code>&lt;input type="file"&gt;</code> 的"选择文件"按钮仍然受浏览器 / 操作系统主题控制，无法用 accent-color 改色。</p>
+
+                <h2 id="alt">拖拽上传（现代标配）</h2>
+                <p>无论用哪种 UI，文件上传都应支持拖拽：</p>
+                <pre><code class="language-html">&lt;div class="dropzone" data-dropzone&gt;
+    &lt;p&gt;拖拽文件到这里 / 点击选择&lt;/p&gt;
+    &lt;input type="file" hidden&gt;
+&lt;/div&gt;</code></pre>
+                <pre><code class="language-javascript">const dz = document.querySelector('[data-dropzone]');
+const input = dz.querySelector('input');
+
+dz.addEventListener('click', () =&gt; input.click());
+dz.addEventListener('dragover', e =&gt; {
+    e.preventDefault();
+    dz.classList.add('dragover');
+});
+dz.addEventListener('dragleave', () =&gt; dz.classList.remove('dragover'));
+dz.addEventListener('drop', e =&gt; {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    input.files = e.dataTransfer.files;
+    input.dispatchEvent(new Event('change'));
+});</code></pre>
+                <pre><code class="language-css">.dropzone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.dropzone.dragover {
+    border-color: #1e88c7;
+    background: #f0f9ff;
+}</code></pre>
+
+                <h2 id="compare">方案对比</h2>
+                <table>
+                    <thead><tr><th>方案</th><th>复杂度</th><th>IE 兼容</th><th>可访问性</th></tr></thead>
+                    <tbody>
+                        <tr><td>原 IE hack（label + 透明 input）</td><td>中等</td><td>IE 6-11</td><td>良（点击区是 input）</td></tr>
+                        <tr><td>纯 CSS（label 包 input）</td><td>低</td><td>IE 10+</td><td>优</td></tr>
+                        <tr><td>Web Component &lt;file-picker&gt;</td><td>中</td><td>不兼容 IE</td><td>优（自定义 ARIA）</td></tr>
+                        <tr><td>Dropzone 拖拽</td><td>中</td><td>IE 10+（drop）</td><td>优</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>优先 <code>&lt;label&gt;</code> 包裹方案——最少代码、最多兼容性（IE 10+ / 现代浏览器）。</li>
+                    <li>永远不要用 <code>filter: alpha(opacity=0)</code> 这种 IE hack。</li>
+                    <li>文件名显示一定要做——否则用户不知道上传成功没有。</li>
+                    <li>拖拽是体验加分项——但要 fallback 到点击选择。</li>
+                    <li>用 <code>accept</code> 属性限制文件类型（如 <code>accept="image/*"</code>），浏览器会按类型筛选。</li>
+                    <li>大文件上传永远要 <code>multiple</code> + 分片，否则用户手机端永远失败。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://developer.mozilla.org/docs/Web/HTML/Element/input/file" target="_="_blank" rel="noopener noreferrer">MDN: &lt;input type="file"&gt;</a></li>
+                        <li><a href="https://developer.mozilla.org/docs/Web/CSS/accent-color" target="_="_blank" rel="noopener noreferrer">MDN: accent-color</a></li>
+                        <li><a href="https://developer.mozilla.org/docs/Web/API/Web_Components" target="_="_blank" rel="noopener noreferrer">MDN: Web Components</a></li>
+                        <li><a href="https://developer.mozilla.org/docs/Web/API/HTML_Drag_and_Drop_API" target="_="_blank" rel="noopener noreferrer">MDN: HTML Drag and Drop API</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#orig">老代码</a>
+            <a href="#pure">纯 CSS</a>
+            <a href="#js">JS 拦截</a>
+            <a href="#accent">accent-color</a>
+            <a href="#alt">拖拽上传</a>
+            <a href="#compare">方案对比</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XR UI Setup 中文注释版：XR 控制器与 Unity UI 的完整链路-范庆林的技术博客</title>
+    <meta name="description" content="XR 控制器与 Unity UI 交互的完整配置链路：World Space Canvas、TrackedDeviceGraphicRaycaster、XRUIInputModule、EventSystem 与 Canvas Optimizer。">
+    <meta name="keywords" content="XR,Unity UI,TrackedDeviceGraphicRaycaster,XRUIInputModule,EventSystem,Canvas">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/xr/xr-ui-setup.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="XR UI Setup 中文注释版：XR 控制器与 Unity UI 的完整链路">
+    <meta property="og:description" content="XR 控制器与 Unity UI 交互的完整配置链路：World Space Canvas、TrackedDeviceGraphicRaycaster、XRUIInputModule、EventSystem 与 Canvas Optimizer。">
+    <meta property="og:url" content="https://fanqinglin.com/xr/xr-ui-setup.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="XR UI Setup 中文注释版：XR 控制器与 Unity UI 的完整链路">
+    <meta name="twitter:description" content="XR 控制器与 Unity UI 交互的完整配置链路：World Space Canvas、TrackedDeviceGraphicRaycaster、XRUIInputModule、EventSystem 与 Canvas Optimizer。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/xr/xr-ui-setup.html",
+        "description": "XR 控制器与 Unity UI 交互的完整配置链路：World Space Canvas、TrackedDeviceGraphicRaycaster、XRUIInputModule、EventSystem 与 Canvas Optimizer。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+    <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#core">核心结论</a><a href="#menu">辅助菜单</a><a href="#eventsystem">EventSystem</a><a href="#canvas">Canvas</a><a href="#occlusion">遮挡检测</a><a href="#optimizer">Canvas Optimizer</a><a href="#inputfield">输入框已知问题</a><a href="#pipeline">最简落地链路</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / XR 项目专题 / Unity XR Interaction Toolkit</div>
+                <span class="article-kicker">XR · XRI 3.x</span>
+                <h1>XR UI Setup 中文注释版：XR 控制器与 Unity UI 的完整链路</h1>
+                <p class="article-deck">普通 Unity UI 默认不是为 VR 控制器射线准备的；本文给出 XR UI 落地的最小完整链路。</p>
+                <div class="article-meta">
+                    <span>XRI 3.4.1</span>
+                    <span>2026-08-06 重写</span>
+                    <span>Unity XR</span>
+                    <span>VR 项目专题</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="core">核心结论</h2>
+                <p>XR Interaction Toolkit 提供组件与辅助菜单，把 XR 控制器接入 Unity UI，让 3D 跟踪设备能像鼠标一样点按钮。</p>
+                <p>一句话总结：</p>
+                <blockquote>普通 Unity UI 默认不是为 VR 控制器射线准备的。如果想让手柄射线点按钮，必须走 XR UI 这套配置链路。</blockquote>
+
+                <h2 id="menu">辅助创建菜单</h2>
+                <p>从 <code>GameObject &gt; XR</code> 菜单创建：</p>
+                <ul>
+                    <li><code>UI Canvas</code>：新建 <code>World Space Canvas</code>；场景里没有 EventSystem 还会一起创建。</li>
+                    <li><code>UI EventSystem</code>：创建或选中已有 XR EventSystem。</li>
+                </ul>
+
+                <h2 id="eventsystem">EventSystem</h2>
+                <p><code>EventSystem</code> 是 UI 事件的中央分发器，处理输入并更新当前活动的 Canvas。每个 EventSystem 还要配一个 Input Module。</p>
+                <p>XR 交互器（<code>NearFarInteractor</code>、<code>XRPokeInteractor</code> 等）如果支持 UI 交互，需要向 <code>XRUIInputModule</code> 注册。</p>
+                <p>通常把 EventSystem 设为 <code>DontDestroyOnLoad</code>，多场景切换时只保留一个实例。</p>
+                <div class="article-warning">
+                    <strong>三件事容易混：</strong>
+                    <ul>
+                        <li>场景同一时间只能有一个有效的 <code>EventSystem</code>。</li>
+                        <li>同一时间也只能有一个启用中的 Input Module。</li>
+                        <li>XR UI 交互必须用 <code>XRUIInputModule</code>，不是旧版 <code>StandaloneInputModule</code>。</li>
+                    </ul>
+                    项目若有多个场景（Home / Quality Rating / JND），每个场景各放一个 EventSystem 容易打架，建议<strong>统一在一处初始化</strong>。
+                </div>
+
+                <h3>Tracked Device Physics Raycaster</h3>
+                <p>场景里加 <code>TrackedDevicePhysicsRaycaster</code>，让带物理 Collider 的对象也能接收来自跟踪设备的 EventSystem 事件。</p>
+                <p>本项目主线仍是 <code>NearFarInteractor → World Space Canvas → TrackedDeviceGraphicRaycaster → XRUIInputModule</code>，Physics Raycaster 可作为补充。</p>
+
+                <h2 id="canvas">Canvas</h2>
+                <p>XR Interaction Toolkit 里，用户<strong>只能与 <code>Render Mode = World Space</code> 的 Canvas 交互</strong>。</p>
+                <p><code>TrackedDeviceGraphicRaycaster</code>（必须挂在 Canvas 同物体）允许 3D 跟踪设备高亮和选中 Canvas 上的 UI 元素。</p>
+                <div class="article-warning">
+                    如果还在用 <code>Screen Space - Overlay</code> 或 <code>Screen Space - Camera</code>，XR 射线通常不会按预期工作。
+                </div>
+
+                <h2 id="occlusion">UI 遮挡检测</h2>
+                <p>用 <code>TrackedDeviceGraphicRaycaster</code> 时，可能出现非 UI 物体挡住 UI 的情况。可启用：</p>
+                <ul>
+                    <li><code>Check For 3D Occlusion</code></li>
+                    <li><code>Check For 2D Occlusion</code></li>
+                </ul>
+                <p>两个选项默认关闭，是为了<strong>省性能</strong>——每启用一个就增加一次额外射线检测。</p>
+                <p>如果 UI 面板总是放在视野前方且无复杂遮挡，先不急着开；如果发现模型挡不住 UI，再考虑打开 <code>Check For 3D Occlusion</code> 并配合 <code>Blocking Mask</code>。</p>
+
+                <h2 id="optimizer">Canvas Optimizer</h2>
+                <p>可选组件，用于层级深 / UI 复杂时的性能优化。它会自动禁用那些看不见或距离太远的 Canvas 的输入处理。</p>
+                <p>当前项目 UI 不复杂；如果将来场景越来越多、World Space Canvas 越来越多、VR 设备上 UI 性能变差，它会变得有价值。</p>
+
+                <h2 id="inputfield">输入框已知问题</h2>
+                <ul>
+                    <li>UWP 平台上标准 uGUI <code>Input Field</code> 可能收不到软件键盘输入，建议换 <code>TextMeshPro - Input Field</code>。</li>
+                    <li>Quest 平台上使用 <code>Multi Line Newline</code> 的 <code>Input Field</code> 可能出现软件键盘关闭问题。</li>
+                </ul>
+                <p>当前项目首页、评分、JND 不依赖文本输入，不是第一优先级。但要做路径输入、实验编号录入、被试信息录入时，直接用 TMP 输入框更稳。</p>
+
+                <h2 id="pipeline">最简落地链路</h2>
+                <p>如果你只想记最实用的一条链路：</p>
+                <ol>
+                    <li><code>Canvas.RenderMode = World Space</code></li>
+                    <li>Canvas 上有 <code>TrackedDeviceGraphicRaycaster</code></li>
+                    <li>场景里有 <code>EventSystem + XRUIInputModule</code></li>
+                    <li>控制器上用 <code>NearFarInteractor</code></li>
+                    <li><code>NearFarInteractor.Enable UI Interaction = true</code></li>
+                    <li><code>UI Press Input</code> 已正确绑定</li>
+                </ol>
+
+                <h2 id="references">参考资料</h2>
+                <ul>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html" target="_blank" rel="noopener noreferrer">XR Interaction Toolkit 手册</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#ui-setup" target="_blank" rel="noopener noreferrer">XR UI Setup 章节</a></li>
+                    <li><a href="https://docs.unity3d.com/Packages/com.unity.xr.interaction.toolkit@3.4/manual/index.html#tracked-device-graphic-raycaster" target="_blank" rel="noopener noreferrer">TrackedDeviceGraphicRaycaster 章节</a></li>
+                </ul>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#core">核心结论</a>
+            <a href="#menu">辅助菜单</a>
+            <a href="#eventsystem">EventSystem</a>
+            <a href="#canvas">Canvas</a>
+            <a href="#occlusion">遮挡检测</a>
+            <a href="#optimizer">Canvas Optimizer</a>
+            <a href="#inputfield">输入框已知问题</a>
+            <a href="#pipeline">最简落地链路</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

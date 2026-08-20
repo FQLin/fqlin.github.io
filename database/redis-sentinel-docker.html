@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Redis Sentinel 高可用集群 Docker 部署详解（1 主 3 从 3 哨兵）-范庆林的技术博客</title>
+    <meta name="description" content="用 Docker Compose 部署 Redis Sentinel 高可用集群：1 主 3 从 + 3 Sentinel，覆盖配置、故障切换、客户端接入。">
+    <meta name="keywords" content="Redis,Sentinel,Docker,高可用,主从复制,故障切换">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/database/redis-sentinel-docker.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Redis Sentinel 高可用集群 Docker 部署详解（1 主 3 从 3 哨兵）">
+    <meta property="og:description" content="用 Docker Compose 部署 Redis Sentinel 高可用集群：1 主 3 从 + 3 Sentinel，覆盖配置、故障切换、客户端接入。">
+    <meta property="og:url" content="https://fanqinglin.com/database/redis-sentinel-docker.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Redis Sentinel 高可用集群 Docker 部署详解（1 主 3 从 3 哨兵）">
+    <meta name="twitter:description" content="用 Docker Compose 部署 Redis Sentinel 高可用集群：1 主 3 从 + 3 Sentinel，覆盖配置、故障切换、客户端接入。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/database/redis-sentinel-docker.html",
+        "description": "用 Docker Compose 部署 Redis Sentinel 高可用集群：1 主 3 从 + 3 Sentinel，覆盖配置、故障切换、客户端接入。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#why">为什么用 Sentinel</a><a href="#layout">节点拓扑</a><a href="#config">配置文件</a><a href="#compose">compose 编写</a><a href="#verify">验证与切换</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / 数据库 / Redis</div>
+                <span class="article-kicker">Database · Redis Sentinel</span>
+                <h1>Redis Sentinel 高可用集群 Docker 部署详解（1 主 3 从 3 哨兵）</h1>
+                <p class="article-deck">主从复制 + 哨兵监控：master 挂了自动选新 master，从节点自动顶上。</p>
+                <div class="article-meta">
+                    <span>Redis 7.x</span>
+                    <span>Sentinel</span>
+                    <span>2026-08-06 发布</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="why">为什么用 Sentinel</h2>
+                <p>普通主从复制只有一个 master：master 挂掉后，需要运维手工把某个 slave 升成 master，再让其他 slave 切换指向新 master。Sentinel 就是为了自动化这件事：</p>
+                <ul>
+                    <li><strong>监控</strong>：持续检查 master / slave 是否健康</li>
+                    <li><strong>通知</strong>：通过 API / pub-sub 让应用知道状态变化</li>
+                    <li><strong>自动故障转移</strong>：master 失效时，从 slave 中投票选新 master</li>
+                    <li><strong>配置提供者</strong>：客户端连接 Sentinel，自动获取当前 master 地址</li>
+                </ul>
+                <p>一个 Sentinel 集群至少 <strong>3 个</strong>节点，避免单点。quorum 通常设为 2（多数派）。</p>
+
+                <h2 id="layout">节点拓扑</h2>
+                <pre><code>角色            容器名             IP             client / sentinel
+master          redisMaster       172.21.0.2    6668
+slave 1         redisSlaves01     172.21.0.3    6669
+slave 2         redisSlaves02     172.21.0.4    6670
+slave 3         redisSlaves03     172.21.0.5    6671
+sentinel 1      redisSentinel01   172.21.0.6    26668
+sentinel 2      redisSentinel02   172.21.0.7    26669
+sentinel 3      redisSentinel03   172.21.0.8    26670</code></pre>
+
+                <h2 id="config">配置文件</h2>
+                <p>三份配置分别放 <code>./conf/</code>：</p>
+
+                <h3><code>master-redis.conf</code></h3>
+                <pre><code>bind 0.0.0.0
+port 6379
+protected-mode no
+
+# 持久化
+appendonly yes
+appendfsync everysec
+
+# 认证
+requirepass &lt;REPLACE_WITH_STRONG_PASSWORD&gt;
+masterauth  &lt;REPLACE_WITH_STRONG_PASSWORD&gt;</code></pre>
+
+                <h3><code>slave-redis.conf</code></h3>
+                <pre><code>bind 0.0.0.0
+port 6379
+protected-mode no
+
+appendonly yes
+appendfsync everysec
+
+requirepass &lt;REPLACE_WITH_STRONG_PASSWORD&gt;
+masterauth  &lt;REPLACE_WITH_STRONG_PASSWORD&gt;
+
+# Redis 5+ 用 replicaof（slaveof 仍兼容）
+replicaof 172.21.0.2 6379
+
+replica-serve-stale-data yes
+replica-read-only yes</code></pre>
+
+                <h3><code>master-sentinel.conf</code></h3>
+                <pre><code>bind 0.0.0.0
+port 26379
+daemonize no
+
+# 监控 master（最后那个 2 是 quorum）
+sentinel monitor mymaster 172.21.0.2 6379 2
+
+# master 30 秒没回应视为下线
+sentinel down-after-milliseconds mymaster 30000
+
+# 故障转移超时
+sentinel failover-timeout mymaster 60000
+
+# 同时同步新 master 的 slave 数量
+sentinel parallel-syncs mymaster 1
+
+# 认证
+sentinel auth-pass mymaster &lt;REPLACE_WITH_STRONG_PASSWORD&gt;</code></pre>
+                <div class="article-warning"><strong>Sentinel 配置里</strong>监控的 IP 要用 master 的<strong>实际可达地址</strong>，不要写 <code>127.0.0.1</code>——容器间靠 172.21.0.0/16 互通。</div>
+
+                <h2 id="compose">docker-compose 编写</h2>
+                <pre><code>version: "3.8"
+
+services:
+  master:
+    image: redis:7.2-alpine
+    container_name: redisMaster
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./conf/master-redis.conf:/usr/local/etc/redis/redis.conf
+    ports: [ "6668:6379" ]
+    networks:
+      cluster_net: { ipv4_address: 172.21.0.2 }
+
+  slaves01:
+    image: redis:7.2-alpine
+    container_name: redisSlaves01
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./conf/slave-redis.conf:/usr/local/etc/redis/redis.conf
+    ports: [ "6669:6379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.3 } }
+
+  slaves02:
+    image: redis:7.2-alpine
+    container_name: redisSlaves02
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./conf/slave-redis.conf:/usr/local/etc/redis/redis.conf
+    ports: [ "6670:6379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.4 } }
+
+  slaves03:
+    image: redis:7.2-alpine
+    container_name: redisSlaves03
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./conf/slave-redis.conf:/usr/local/etc/redis/redis.conf
+    ports: [ "6671:6379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.5 } }
+
+  sentinel01:
+    image: redis:7.2-alpine
+    container_name: redisSentinel01
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./conf/master-sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    ports: [ "26668:26379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.6 } }
+
+  sentinel02:
+    image: redis:7.2-alpine
+    container_name: redisSentinel02
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./conf/master-sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    ports: [ "26669:26379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.7 } }
+
+  sentinel03:
+    image: redis:7.2-alpine
+    container_name: redisSentinel03
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./conf/master-sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    ports: [ "26670:26379" ]
+    networks: { cluster_net: { ipv4_address: 172.21.0.8 } }
+
+networks:
+  cluster_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16</code></pre>
+
+                <h2 id="start">启动与验证</h2>
+                <pre><code>docker compose up -d
+
+# 看 master 视角的副本
+docker exec redisMaster redis-cli -a &lt;PASSWORD&gt; info replication
+# role:master
+# connected_slaves:3
+
+# 看 Sentinel 视角
+docker exec redisSentinel01 redis-cli -p 26379 sentinel masters
+# 1) "name"
+# 2) "mymaster"
+# 3) "ip"
+# 4) "172.21.0.2"
+# 5) "port"
+# 6) "6379"
+# ...
+# 14) "num-slaves"
+# 15) (integer) 3
+# 16) "num-other-sentinels"
+# 17) (integer) 2</code></pre>
+
+                <h2 id="failover">故障转移演示</h2>
+                <p>手动杀掉 master：</p>
+                <pre><code>docker stop redisMaster</code></pre>
+                <p>等 30 秒（<code>down-after-milliseconds</code> 默认值），Sentinel 会判定 master 不可达。再次查看：</p>
+                <pre><code>docker exec redisSentinel01 redis-cli -p 26379 sentinel masters</code></pre>
+                <p>输出里 <code>ip</code> 应已变成某个 slave 的 IP（如 <code>172.21.0.3</code>），且 <code>role-reported</code> 为 <code>master</code>。</p>
+                <p>把老 master 启动回来：</p>
+                <pre><code>docker start redisMaster</code></pre>
+                <p>它会以 <strong>slave</strong> 身份重新加入（这是 Sentinel 的标准行为——避免脑裂）。</p>
+
+                <h2 id="client">客户端接入</h2>
+                <p>应用不应该硬编码 master IP，而是连 Sentinel 自动发现当前 master：</p>
+                <pre><code># Python redis-py
+from redis.sentinel import Sentinel
+sentinel = Sentinel(
+    [("172.21.0.6", 26379),
+     ("172.21.0.7", 26379),
+     ("172.21.0.8", 26379)],
+    sentinel_kwargs={"password": "&lt;PASSWORD&gt;"},
+    password="&lt;PASSWORD&gt;",
+)
+master = sentinel.master_for("mymaster")
+master.set("foo", "bar")</code></pre>
+                <pre><code>// Java Lettuce
+RedisURI sentinelUri = RedisURI.create("redis://:&lt;PASSWORD&gt;@172.21.0.6:26379");
+RedisClient client = RedisClient.create(sentinelUri);
+StatefulRedisMasterConnection<String, String> master =
+    MasterClient.connect(client,
+        ImmutableList.of("172.21.0.6", "172.21.0.7", "172.21.0.8"),
+        "mymaster");</code></pre>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>Sentinel 至少 3 节点，quorum 多数派。2 节点不行（脑裂风险）。</li>
+                    <li>Sentinel 自身也要持久化（<code>dir</code>），重启后才知道 master 是谁。</li>
+                    <li><code>down-after-milliseconds</code> 别设太小，否则网络抖动会误触发切换。</li>
+                    <li>应用必须用支持 Sentinel 的客户端，否则故障切换后连不上。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/sentinel/" target="_blank" rel="noopener noreferrer">Redis Sentinel 官方文档</a></li>
+                        <li><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/replication/" target="_blank" rel="noopener noreferrer">Replication 文档</a></li>
+                        <li><a href="https://redis.io/docs/latest/commands/sentinel/" target="_blank" rel="noopener noreferrer">SENTINEL 命令</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#why">为什么用 Sentinel</a>
+            <a href="#layout">节点拓扑</a>
+            <a href="#config">配置文件</a>
+            <a href="#compose">compose 编写</a>
+            <a href="#start">启动验证</a>
+            <a href="#failover">故障转移</a>
+            <a href="#client">客户端接入</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>

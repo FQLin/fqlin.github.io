@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Elasticsearch 7 入门速记：安装、IK 分词与查询 DSL 实战-范庆林的技术博客</title>
+    <meta name="description" content="Elasticsearch 7 入门：从 Docker 启动、IK 中文分词、索引 Mapping、查询 DSL（match/term/bool/highlight/aggregations）到 nested/join 关联建模。">
+    <meta name="keywords" content="Elasticsearch,IK 分词,查询 DSL,Docker,Mapping,聚合,全文检索">
+    <meta name="author" content="范庆林">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://fanqinglin.com/database/elasticsearch-7-intro.html">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Elasticsearch 7 入门速记：安装、IK 分词与查询 DSL 实战">
+    <meta property="og:description" content="Elasticsearch 7 入门：从 Docker 启动、IK 中文分词、索引 Mapping、查询 DSL（match/term/bool/highlight/aggregations）到 nested/join 关联建模。">
+    <meta property="og:url" content="https://fanqinglin.com/database/elasticsearch-7-intro.html">
+    <meta property="og:site_name" content="范庆林的主站">
+    <meta property="og:locale" content="zh_CN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Elasticsearch 7 入门速记：安装、IK 分词与查询 DSL 实战">
+    <meta name="twitter:description" content="Elasticsearch 7 入门：从 Docker 启动、IK 中文分词、索引 Mapping、查询 DSL（match/term/bool/highlight/aggregations）到 nested/join 关联建模。">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "范庆林的主站",
+        "url": "https://fanqinglin.com/database/elasticsearch-7-intro.html",
+        "description": "Elasticsearch 7 入门：从 Docker 启动、IK 中文分词、索引 Mapping、查询 DSL（match/term/bool/highlight/aggregations）到 nested/join 关联建模。",
+        "inLanguage": "zh-CN",
+        "author": {
+            "@type": "Person",
+            "name": "范庆林"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="../assets/blog.css">
+</head>
+<body class="blog-article-page">
+    <header class="article-header">
+        <a class="article-header__brand" href="../index.html">FQLIN / NOTES</a>
+        <nav aria-label="文章导航"><a href="../index.html">首页</a><a href="#start">启动</a><a href="#mapping">Mapping 与字段类型</a><a href="#query">查询 DSL</a><a href="#agg">聚合</a><a href="#relation">nested 与 join</a><a href="#references">参考资料</a></nav>
+    </header>
+
+    <div class="article-shell">
+        <main class="article-main">
+            <header class="article-hero">
+                <div class="article-breadcrumbs"><a href="../index.html">首页</a> / 数据库 / 搜索</div>
+                <span class="article-kicker">Database · Search Engine</span>
+                <h1>Elasticsearch 7 入门速记：安装、IK 分词与查询 DSL 实战</h1>
+                <p class="article-deck">从 Docker 启一个 ES 7，到能写出能跑的中文检索 + 聚合查询。一篇文章覆盖最小可用闭环。</p>
+                <div class="article-meta">
+                    <span>Elasticsearch 7.x</span>
+                    <span>2026-08-06 发布</span>
+                    <span>搜索</span>
+                    <span>聚合</span>
+                </div>
+            </header>
+
+            <article class="article-body">
+                <h2 id="start">5 分钟启一个 ES</h2>
+                <p>单节点本地学习用。先确认 <code>vm.max_map_count</code> 足够大（ES 默认推荐 262144），Linux 上：</p>
+                <pre><code>sudo sysctl -w vm.max_map_count=262144</code></pre>
+                <p>docker-compose 启动 7.17（最后一个 7.x LTS）：</p>
+                <pre><code>services:
+  es:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }</code></pre>
+                <p>健康检查：</p>
+                <pre><code>curl http://localhost:9200/_cluster/health</code></pre>
+
+                <h3>中文分词：IK</h3>
+                <p>默认分词器对中文不友好（会把每个字拆开）。装 IK 插件：</p>
+                <pre><code>docker exec -it es bash
+./bin/elasticsearch-plugin install \
+  https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v7.17.10/elasticsearch-analysis-ik-7.17.10.zip
+exit
+docker restart es</code></pre>
+                <p>两个分词模式：</p>
+                <ul>
+                    <li><code>ik_max_word</code>：最细粒度拆分（适合索引时）</li>
+                    <li><code>ik_smart</code>：粗粒度拆分（适合查询时）</li>
+                </ul>
+
+                <h2 id="mapping">Mapping 与字段类型</h2>
+                <p>ES 7 起，type 概念被弱化（一个 index 只有一个 <code>_doc</code>）。建一个商品索引：</p>
+                <pre><code>PUT /products
+{
+  "mappings": {
+    "properties": {
+      "title":       { "type": "text", "analyzer": "ik_max_word",
+                       "fields": { "keyword": { "type": "keyword" } } },
+      "brand":       { "type": "keyword" },
+      "price":       { "type": "double" },
+      "stock":       { "type": "integer" },
+      "tags":        { "type": "keyword" },
+      "created_at":  { "type": "date" }
+    }
+  }
+}</code></pre>
+                <p>要点：</p>
+                <ul>
+                    <li><code>text</code> 字段会被分词，<code>keyword</code> 字段不会；常用双字段（<code>title</code> + <code>title.keyword</code>）兼顾全文检索与精确过滤。</li>
+                    <li>Mapping 一旦建好，<strong>已存在字段的类型不可改</strong>。要改只能 reindex 到新 index。</li>
+                    <li>日期字段支持 <code>date</code>、<code>date_nanos</code>，默认 ISO-8601。</li>
+                </ul>
+
+                <h2 id="query">查询 DSL</h2>
+
+                <h3>基础查询</h3>
+                <pre><code># 全文匹配（分词后匹配）
+GET /products/_search
+{
+  "query": { "match": { "title": "运动 鞋" } }
+}
+
+# 精确匹配（不分词）
+GET /products/_search
+{
+  "query": { "term": { "brand": "nike" } }
+}
+
+# 短语匹配（保持顺序、紧邻）
+GET /products/_search
+{
+  "query": { "match_phrase": { "title": "篮球鞋" } }
+}</code></pre>
+
+                <h3>复合查询</h3>
+                <pre><code>GET /products/_search
+{
+  "query": {
+    "bool": {
+      "must":   [ { "match": { "title": "跑鞋" } } ],
+      "filter": [ { "range": { "price": { "gte": 100, "lte": 500 } } } ],
+      "must_not": [ { "term": { "tags": "停产" } } ]
+    }
+  }
+}</code></pre>
+                <ul>
+                    <li><code>must</code>：参与打分</li>
+                    <li><code>filter</code>：只过不过滤、不打分，更快</li>
+                    <li><code>must_not</code>：反向排除</li>
+                </ul>
+
+                <h3>高亮</h3>
+                <pre><code>GET /products/_search
+{
+  "query":  { "match": { "title": "运动鞋" } },
+  "highlight": { "fields": { "title": {} } }
+}</code></pre>
+                <p>返回里每个 hit 的 <code>highlight.title</code> 会有 <code>&lt;em&gt;</code> 包裹的命中片段。</p>
+
+                <h2 id="agg">聚合</h2>
+                <p>按品牌分桶求平均价格：</p>
+                <pre><code>GET /products/_search
+{
+  "size": 0,
+  "aggs": {
+    "by_brand": {
+      "terms": { "field": "brand", "size": 10 },
+      "aggs": {
+        "avg_price": { "avg": { "field": "price" } }
+      }
+    }
+  }
+}</code></pre>
+                <ul>
+                    <li><code>size: 0</code>：不返回文档，只返回聚合结果</li>
+                    <li><code>terms</code>：分桶聚合，类似 SQL 的 <code>GROUP BY</code></li>
+                    <li><code>avg</code> / <code>sum</code> / <code>min</code> / <code>max</code> / <code>stats</code>：指标聚合</li>
+                </ul>
+
+                <h2 id="relation">关联建模</h2>
+
+                <h3>nested：一对多嵌套</h3>
+                <p>一个用户有多个地址，地址里要按省/市分别过滤：</p>
+                <pre><code>PUT /users
+{
+  "mappings": {
+    "properties": {
+      "login_name": { "type": "keyword" },
+      "addresses": {
+        "type": "nested",
+        "properties": {
+          "province": { "type": "keyword" },
+          "city":     { "type": "keyword" }
+        }
+      }
+    }
+  }
+}</code></pre>
+                <pre><code>GET /users/_search
+{
+  "query": {
+    "nested": {
+      "path": "addresses",
+      "query": { "term": { "addresses.province": "上海" } }
+    }
+  }
+}</code></pre>
+
+                <h3>join：父子关系</h3>
+                <p>父子必须在同一 index（ES 限制）：</p>
+                <pre><code>PUT /ecom
+{
+  "mappings": {
+    "properties": {
+      "category_name": { "type": "text", "analyzer": "ik_max_word",
+                         "fields": { "keyword": { "type": "keyword" } } },
+      "join_field": {
+        "type": "join",
+        "relations": { "category": "product" }
+      }
+    }
+  }
+}</code></pre>
+                <p>查询父下所有子：</p>
+                <pre><code>GET /ecom/_search
+{
+  "query": {
+    "has_child": {
+      "type": "product",
+      "query": { "range": { "price": { "gte": 5000, "lte": 10000 } } }
+    }
+  }
+}</code></pre>
+
+                <h2 id="tips">实战经验</h2>
+                <ul>
+                    <li><strong>深分页别用 <code>from + size</code> 大数</strong>，改用 <code>search_after</code> 或滚动 API。</li>
+                    <li><strong>默认 10000 条上限</strong>，超限会报 <code>result_window_too_large</code>，调大 <code>index.max_result_window</code> 是最后手段。</li>
+                    <li><strong>建索引时一次性把 mapping 设对</strong>，改 mapping 代价大。</li>
+                    <li><strong>日期字段排序慢</strong>，考虑 <code>date</code> + keyword 双字段做精确查找。</li>
+                </ul>
+
+                <h2 id="principles">使用准则</h2>
+                <ol>
+                    <li>ES 7+ 起不再需要 type；新建索引直接用 <code>_doc</code>。</li>
+                    <li>中文检索必装 IK；索引 <code>ik_max_word</code>，查询 <code>ik_smart</code>。</li>
+                    <li>聚合前确认字段是 <code>keyword</code> 或数值类型——<code>text</code> 字段直接聚合会报错。</li>
+                    <li>nested 字段查询必须包在 <code>nested</code> query 里，否则退化为扁平数组匹配。</li>
+                </ol>
+
+                <section class="article-source" id="references">
+                    <strong>参考资料</strong>
+                    <ul>
+                        <li><a href="https://www.elastic.co/guide/en/elasticsearch/reference/7.17/index.html" target="_blank" rel="noopener noreferrer">Elasticsearch 7.17 官方文档</a></li>
+                        <li><a href="https://github.com/medcl/elasticsearch-analysis-ik" target="_blank" rel="noopener noreferrer">elasticsearch-analysis-ik</a></li>
+                        <li><a href="https://github.com/mobz/elasticsearch-head" target="_blank" rel="noopener noreferrer">elasticsearch-head（可视化管理）</a></li>
+                        <li><a href="https://www.elastic.co/guide/en/elasticsearch/reference/7.17/search-aggregations.html" target="_blank" rel="noopener noreferrer">Aggregations</a></li>
+                    </ul>
+                </section>
+            </article>
+        </main>
+
+        <aside class="article-toc" aria-label="本文目录">
+            <strong>本文目录</strong>
+            <a href="#start">启动</a>
+            <a href="#mapping">Mapping</a>
+            <a href="#query">查询 DSL</a>
+            <a href="#agg">聚合</a>
+            <a href="#relation">nested / join</a>
+            <a href="#tips">实战经验</a>
+            <a href="#principles">使用准则</a>
+            <a href="#references">参考资料</a>
+        </aside>
+    </div>
+</body>
+</html>
